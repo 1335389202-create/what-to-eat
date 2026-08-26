@@ -78,8 +78,10 @@ try {
   await page.getByRole("button", { name: "查看菜谱", exact: true }).click();
   await page.getByRole("button", { name: "我做了这顿饭", exact: true }).click();
   await page.waitForURL(/#\/deduction$/);
+  await page.getByText("确认后才更新库存", { exact: true }).waitFor({ state: "visible" });
   check("HTTP 下主要流程可操作", await page.getByText("确认后才更新库存", { exact: true }).isVisible());
   await page.reload({ waitUntil: "load" });
+  await page.getByText("确认后才更新库存", { exact: true }).waitFor({ state: "visible" });
   check("Hash 路由刷新状态正常", page.url().endsWith("#/deduction") && await page.getByText("确认后才更新库存", { exact: true }).isVisible());
   check("根路径无网络或控制台错误", failures.length === 0 && errors.length === 0, [...failures, ...errors].join(" | "));
 

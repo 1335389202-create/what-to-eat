@@ -4,9 +4,8 @@
 
 ## Live Demo
 
-当前处于发布准备阶段。GitHub Pages 部署完成后，地址将更新为：
-
-`https://YOUR_GITHUB_USERNAME.github.io/what-to-eat/`
+- 在线体验：[https://1335389202-create.github.io/what-to-eat/](https://1335389202-create.github.io/what-to-eat/)
+- GitHub 仓库：[https://github.com/1335389202-create/what-to-eat](https://github.com/1335389202-create/what-to-eat)
 
 > 本项目使用 JavaScript ES Modules，**不能直接通过 `file://` 双击 `index.html` 打开**。本地预览必须使用 HTTP Server，具体方法见[本地运行](#本地运行)。
 
@@ -142,8 +141,8 @@ npm run test:release
   - 浏览器主流程：30/30
   - 响应式、无障碍与视觉质量：22/22
 - 低保真 `prototype/` 独立基线：**76/76**
-- HTTP 与 GitHub Pages 子路径部署烟测：运行 `npm run test:deployment`
-- 发布文件、相对路径和敏感信息预检：运行 `npm run test:release`
+- HTTP 与 GitHub Pages 子路径部署烟测：**13/13**
+- 发布文件、相对路径和敏感信息预检：**13/13**
 
 ## 项目结构
 
