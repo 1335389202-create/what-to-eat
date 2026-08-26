@@ -93,13 +93,15 @@
 
 ### 步骤 7：开源包装、截图与静态部署
 
-- **状态**：Step 7A 已完成；外部 GitHub 操作待批准
+- **状态**：已完成
 - **目标**：使项目可公开访问、可从 GitHub 阅读和复现，并适合简历/作品集引用。
 - **修改范围**：创建 `README.md`、`LICENSE`、`.gitignore`、Pages workflow 和产品截图；README 如实填写项目简介、Live Demo、核心功能、设计思路、范围、实现、本地运行、结构、Roadmap 与限制。
 - **验收方式**：全新克隆后按 README 可启动和测试；仓库扫描无 secret、API Key、手机号或个人隐私；GitHub Pages 部署成功且刷新/子路径可用；README 截图与 Live Demo 链接有效；未实现能力只出现在 Roadmap。
 - **实际完成（Step 7A）**：补充 Python 本地 HTTP 启动说明；创建 README、MIT LICENSE、.gitignore、Pages Actions workflow、稳定截图目录、部署烟测与发布预检；公开 artifact 仅包含 `index.html` 和 `src/`。
 - **测试结果（Step 7A）**：Portfolio MVP 82/82、prototype 76/76、HTTP/Pages 子路径部署烟测 13/13、发布预检 13/13；实际 HTTP 打开、ES Modules、LocalStorage、刷新、主流程及零控制台错误均通过。
-- **计划偏差**：无。真实 GitHub Pages 部署尚未执行，符合 Step 7A 停止条件；README 的 Live Demo 仍为待发布占位地址。
+- **实际完成（Step 7B）**：创建公开 GitHub 仓库并推送 `main`；Pages Source 配置为 GitHub Actions；README 写入正式 Live Demo；普通 `main` push 已连续触发并完成自动部署。
+- **最终验证**：本地 184/184，正式 Pages 线上烟测 28/28；390px、1440px、ES Modules、LocalStorage、刷新、完整扣减、Reduce Motion、仓库子路径及零 404/控制台错误均通过。
+- **计划偏差**：无产品范围偏差。首次 workflow 因 push 早于 Pages 启用而失败；按日志完成 Pages 配置后原任务重跑成功，未修改业务逻辑。
 
 ## 5. 明确推迟到 Roadmap
 
