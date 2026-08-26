@@ -1,0 +1,27 @@
+# Dependencies and test outputs
+node_modules/
+playwright-report/
+test-results/
+tests/artifacts/
+output/
+
+# Local planning and editor files
+.planning/
+.vscode/
+.idea/
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs and operating system files
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Python local cache (only relevant when using a local HTTP server)
+__pycache__/
+*.py[cod]

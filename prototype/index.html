@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>今天吃什么｜浏览器低保真原型</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#prototype-main">跳到原型内容</a>
+  <div class="prototype-workspace">
+    <aside class="facilitator-panel" aria-label="原型测试主持人入口">
+      <div class="facilitator-heading">
+        <p class="eyebrow">UX Prototype</p>
+        <h1>今天吃什么</h1>
+        <p>低保真浏览器原型 · 390 × 844</p>
+      </div>
+
+      <section aria-labelledby="task-starts-title">
+        <h2 id="task-starts-title">7 项测试起点</h2>
+        <div id="task-starts" class="facilitator-list"></div>
+      </section>
+
+      <section aria-labelledby="prototype-settings-title">
+        <h2 id="prototype-settings-title">原型设置</h2>
+        <label class="switch-row" for="reduce-motion-toggle">
+          <span>减少动态效果</span>
+          <input id="reduce-motion-toggle" type="checkbox">
+        </label>
+        <label class="field" for="draw-outcome-select">
+          <span class="field-label">下一次盲盒分支</span>
+          <select id="draw-outcome-select">
+            <option value="09">满足</option>
+            <option value="16">可能满足</option>
+            <option value="18">未知</option>
+            <option value="21">不足 / 补买</option>
+            <option value="23">无结果</option>
+          </select>
+        </label>
+        <button class="button button-secondary button-full" type="button" data-action="reset-prototype">复位样例数据</button>
+      </section>
+
+      <details class="frame-index">
+        <summary>24 Frame 索引</summary>
+        <ol id="frame-index-list"></ol>
+      </details>
+      <details class="frame-index">
+        <summary>范围与 Deferred</summary>
+        <div id="scope-inventory"></div>
+      </details>
+      <details class="frame-index">
+        <summary>Component Inventory</summary>
+        <ul id="component-inventory" class="meta-list"></ul>
+      </details>
+      <details class="frame-index">
+        <summary>7 项测试任务</summary>
+        <ol id="test-task-list" class="meta-list"></ol>
+      </details>
+      <details class="frame-index">
+        <summary>14 个验证问题</summary>
+        <ol id="validation-question-list" class="meta-list"></ol>
+      </details>
+    </aside>
+
+    <main id="prototype-main" class="device-stage" tabindex="-1">
+      <div class="device-shell" aria-label="390 乘 844 手机端原型">
+        <div class="device-status" aria-hidden="true">
+          <span>18:20</span>
+          <span>Prototype</span>
+        </div>
+        <div id="app" class="app-viewport"></div>
+        <div id="live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+      </div>
+      <div class="frame-caption" aria-live="polite">
+        <span id="current-frame-name">正在载入原型…</span>
+        <span id="current-page-id"></span>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
