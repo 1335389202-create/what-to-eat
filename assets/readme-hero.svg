@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">今天吃什么？</title>
+  <desc id="desc">暖黄色与奶油白背景上的双场景吃饭决策产品封面：在家做饭与外出就餐。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fff8e7"/>
+      <stop offset=".58" stop-color="#f7c95d"/>
+      <stop offset="1" stop-color="#e99a48"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#75502b" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="420" rx="38" fill="url(#bg)"/>
+  <circle cx="1070" cy="72" r="148" fill="#fff" opacity=".18"/>
+  <circle cx="84" cy="386" r="132" fill="#56785d" opacity=".18"/>
+  <g transform="translate(72 74)">
+    <rect width="720" height="272" rx="30" fill="#fffaf0" filter="url(#shadow)"/>
+    <text x="48" y="86" font-family="Inter, Noto Sans SC, Microsoft YaHei, sans-serif" font-size="56" font-weight="800" fill="#33281e">今天吃什么？</text>
+    <text x="50" y="134" font-family="Inter, sans-serif" font-size="25" font-weight="650" fill="#bf512b">Stop deciding. Start eating.</text>
+    <line x1="50" y1="168" x2="660" y2="168" stroke="#e4d5bd" stroke-width="2"/>
+    <text x="50" y="216" font-family="Inter, sans-serif" font-size="20" fill="#56785d">Home Cooking  ·  Eat Out</text>
+    <text x="50" y="248" font-family="Inter, sans-serif" font-size="18" fill="#746759">Inventory-aware Recommendations</text>
+  </g>
+  <g transform="translate(860 102)" filter="url(#shadow)">
+    <ellipse cx="120" cy="114" rx="118" ry="92" fill="#fffaf0"/>
+    <ellipse cx="120" cy="114" rx="88" ry="64" fill="#f5e7c9" stroke="#fff" stroke-width="12"/>
+    <circle cx="92" cy="100" r="27" fill="#e57536"/>
+    <path d="M118 76c34-24 68 2 57 35-8 25-42 39-67 18-19-16-10-39 10-53Z" fill="#56785d"/>
+    <circle cx="115" cy="137" r="22" fill="#f7c95d"/>
+    <path d="M210 28v158M230 28v158" stroke="#33281e" stroke-width="8" stroke-linecap="round"/>
+  </g>
+</svg>
+
