@@ -4,28 +4,30 @@ import { createStore } from "./storage.js";
 import { recipes, findRecipe } from "./data/recipes.js";
 import { evaluateRecipe, pickRecommendation, statusLabels } from "./recommender.js";
 import { applyDeduction, buildDeduction } from "./deduction.js";
+import { derivePurchaseAge, localTodayKey, parseLocalDateKey, purchaseAgeBonus, purchaseAgeSafetyText, purchaseAgeText } from "./purchase-age.js";
 
 const app = document.querySelector("#app");
 const liveRegion = document.querySelector("#live-region");
 const store = createStore();
-const loaded = store.load();
+let loaded = store.load();
 let data = loaded.document;
 const state = {
   route: "home",
   overlay: null,
   previousRoute: "home",
   drawTimer: null,
-  storageRecovered: loaded.recovered,
+  storageStatus: loaded.status,
   editingIngredientId: null,
   ingredientForm: null,
   conditionsDraft: null,
   dirty: false,
   confirmDiscard: false,
+  confirmReset: null,
   returnFocus: null,
   pendingFocus: null,
   recommendation: null,
   noResultMessage: "",
-  pendingDeduction: data.session.pendingDeduction ? structuredClone(data.session.pendingDeduction) : null,
+  pendingDeduction: data?.session.pendingDeduction ? structuredClone(data.session.pendingDeduction) : null,
   commitError: ""
 };
 
@@ -64,14 +66,40 @@ function screen({ title, body, back = null, active = null, cta = "" }) {
   return `<section class="screen">${header(title, back)}<div class="screen-body ${active ? "" : "task"}">${body}</div>${cta}${active ? nav(active) : ""}</section>`;
 }
 
+function batchAgeView(batch, todayKey = localTodayKey()) {
+  const age = derivePurchaseAge(batch?.purchasedOn, todayKey);
+  const variant = age.reason === "future" || age.reason === "invalid" ? "future" : age.status;
+  return { age, variant, text: purchaseAgeText(age), safety: purchaseAgeSafetyText(age) };
+}
+
+function itemAgeView(item, todayKey = localTodayKey()) {
+  const views = item.batches.map((batch) => batchAgeView(batch, todayKey));
+  return views.find((view) => view.variant === "future")
+    || [...views].sort((left, right) => purchaseAgeBonus(right.age) - purchaseAgeBonus(left.age) || (right.age.days ?? -1) - (left.age.days ?? -1))[0]
+    || batchAgeView(null, todayKey);
+}
+
+function purchaseAgeAlerts(todayKey = localTodayKey()) {
+  return data.inventory.flatMap((item) => item.batches
+    .filter((batch) => batch.quantity !== null && Number(batch.quantity) > 0 && batch.precision !== "unknown")
+    .map((batch) => ({ item, ...batchAgeView(batch, todayKey) }))
+    .filter((entry) => purchaseAgeBonus(entry.age) > 0));
+}
+
+function purchaseAgeMarkup(view) {
+  return `<span class="purchase-age purchase-age-${view.variant}">${view.text}</span>${view.safety ? `<small class="safety-note">${view.safety}</small>` : ""}`;
+}
+
 function inventoryRows() {
+  const todayKey = localTodayKey();
   return `<ul class="list">${data.inventory.map((item) => {
     const known = item.batches.filter((batch) => batch.quantity !== null);
     const total = known.reduce((sum, batch) => sum + Number(batch.quantity), 0);
     const units = new Set(known.map((batch) => batch.unit));
     const amount = !known.length ? "余量未填" : units.size === 1 ? `${known.some((batch) => batch.precision === "approximate") ? "约 " : ""}${total} ${known[0].unit}` : "单位待确认";
-    const note = item.batches.some((batch) => batch.useSoon) ? `${item.batches.length} 个批次 · 1 批临期` : item.batches.some((batch) => batch.precision === "unknown") ? "数量未知" : `${item.batches.length} 个批次`;
-    return `<li class="list-row"><div><strong>${escapeAttribute(item.name)}</strong><small>${amount} · ${note}</small></div><div class="list-actions"><button class="list-action" type="button" data-edit-ingredient="${escapeAttribute(item.id)}">编辑</button></div></li>`;
+    const note = item.batches.some((batch) => batch.precision === "unknown") ? `${item.batches.length} 个批次 · 数量含未知` : `${item.batches.length} 个批次`;
+    const ageView = itemAgeView(item, todayKey);
+    return `<li class="list-row inventory-row"><div><strong>${escapeAttribute(item.name)}</strong><small>${amount} · ${note}</small>${purchaseAgeMarkup(ageView)}</div><div class="list-actions"><button class="list-action" type="button" data-edit-ingredient="${escapeAttribute(item.id)}">编辑</button></div></li>`;
   }).join("")}</ul>`;
 }
 
@@ -86,22 +114,26 @@ function requirementRows(candidate) {
 }
 
 function homeView() {
-  const expiring = data.inventory.filter((item) => item.batches.some((batch) => batch.useSoon));
+  const alerts = purchaseAgeAlerts();
+  const alertItems = new Set(alerts.map((entry) => entry.item.id));
   const conditions = data.conditions;
+  const migrationNotice = data.migration && !data.migration.upgradeNoticeAcknowledged
+    ? '<div class="notice migration-notice"><div class="split"><div><strong>本地数据已升级</strong><div class="helper">旧库存已安全迁移；原有批次的购买时间保持未知，可在库存中补充。</div></div><button class="list-action" type="button" data-action="dismiss-migration">知道了</button></div></div>'
+    : "";
   return screen({
     title: "今天",
     active: "home",
     body: `<div class="home-intro"><div><p class="eyebrow">欢迎回来</p><h2 class="page-title">把家里的食材，<br>变成今天这一顿。</h2></div><button class="motion-toggle" type="button" data-action="toggle-motion" aria-pressed="${data.preferences.reduceMotion}"><span aria-hidden="true">${data.preferences.reduceMotion ? "◼" : "◉"}</span>${data.preferences.reduceMotion ? "已减少动效" : "标准动效"}</button></div><p class="helper">数据只保存在当前浏览器，刷新后也不会丢失。</p>
-      <section class="hero-card home-hero"><div class="meal-illustration" aria-hidden="true"><span class="plate"></span><span class="food food-a"></span><span class="food food-b"></span><span class="food food-c"></span></div><div class="split hero-copy"><div><p class="eyebrow">${conditions.meal === "lunch" ? "午餐" : "晚餐"} · ${conditions.diners} 人</p><h2>今天吃什么？</h2></div><span class="status">库存可用</span></div><p>优先使用临期食材，在合格菜谱里留一点随机惊喜。</p><button class="button link" type="button" data-overlay="conditions">调整推荐条件</button></section>
-      ${state.storageRecovered ? '<div class="notice"><strong>已恢复演示数据</strong><div class="helper">原本地数据无法读取，未继续使用损坏内容。</div></div>' : ""}
+      <section class="hero-card home-hero"><div class="meal-illustration" aria-hidden="true"><span class="plate"></span><span class="food food-a"></span><span class="food food-b"></span><span class="food food-c"></span></div><div class="split hero-copy"><div><p class="eyebrow">${conditions.meal === "lunch" ? "午餐" : "晚餐"} · ${conditions.diners} 人</p><h2>今天吃什么？</h2></div><span class="status">库存可用</span></div><p>根据购买时长建议优先考虑部分食材，在合格菜谱里留一点随机惊喜。</p><button class="button link" type="button" data-overlay="conditions">调整推荐条件</button></section>
+      ${migrationNotice}
       ${data.session.lastCompletedAt ? `<div class="notice success-notice"><strong>最近完成：${data.session.lastCompletedRecipeTitle}</strong><div class="helper">库存已经过确认并更新。</div></div>` : ""}
-      <h2 class="section-title">库存提醒</h2><div class="notice"><strong>${expiring.length ? `${expiring.length} 类食材需优先使用` : "暂时没有临期提醒"}</strong><div class="helper">推荐时会优先考虑，不会自动扣减。</div></div>`,
+      <h2 class="section-title">库存提醒</h2><div class="notice"><strong>${alerts.length ? `${alertItems.size} 类食材建议优先考虑` : "暂时没有需要优先考虑的食材"}</strong><div class="helper">依据购买日期提供排序提示，不代表食材安全或保质判断；制作前请自行确认状态。</div></div>`,
     cta: action("今天吃什么", 'data-overlay="conditions" data-focus-key="conditions"')
   });
 }
 
 function inventoryView() {
-  return screen({ title: "我的库存", active: "inventory", body: `<p class="eyebrow">个人库存</p><h2 class="page-title">${data.inventory.length} 类食材</h2><div class="notice"><strong>先吃临期</strong><div class="helper">标记为尽快食用的批次会优先参与推荐</div></div><h2 class="section-title">当前库存</h2>${inventoryRows()}<button class="button link" type="button" data-action="reset-data">恢复演示数据</button>`, cta: action("添加食材", 'data-overlay="ingredient" data-focus-key="add-ingredient"') });
+  return screen({ title: "我的库存", active: "inventory", body: `<p class="eyebrow">个人库存</p><h2 class="page-title">${data.inventory.length} 类食材</h2><div class="notice"><strong>按购买时长合理安排</strong><div class="helper">购买日期用于推荐和扣减排序，不等同于保质期或食用安全判断。</div></div><h2 class="section-title">当前库存</h2>${inventoryRows()}<button class="button link" type="button" data-action="reset-data">恢复演示数据</button>`, cta: action("添加食材", 'data-overlay="ingredient" data-focus-key="add-ingredient"') });
 }
 
 function drawView() {
@@ -129,8 +161,12 @@ function noResultView() {
 function deductionView() {
   const deduction = state.pendingDeduction || data.session.pendingDeduction;
   if (!deduction) return recipeView();
-  const rows = deduction.items.length ? deduction.items.map((item) => `<li class="deduction-row"><div class="split"><div><strong>${item.name}</strong><small>${item.useSoon ? "临期批次优先" : `批次 ${item.batchId}`}${item.precision === "unknown" ? " · 数量未知" : ""}</small></div><label class="check-inline"><input type="checkbox" data-deduction-skip="${item.key}" ${item.skip ? "checked" : ""}>跳过</label></div><div class="deduction-input"><label for="deduction-${item.key.replaceAll(":", "-")}">实际使用量</label><div><input id="deduction-${item.key.replaceAll(":", "-")}" type="number" min="0" ${item.max !== null ? `max="${item.max}"` : ""} step="any" value="${item.amount}" data-deduction-amount="${item.key}" ${item.skip ? "disabled" : ""}><span>${item.unit}</span></div></div></li>`).join("") : '<li class="notice"><strong>没有可扣减的已知库存</strong><div class="helper">缺少或未知的食材不会被擅自更新。</div></li>';
-  return screen({ title: "库存扣减预览", back: "recipe", body: `<div class="notice"><strong>确认后才更新库存</strong><div>系统建议优先使用临期批次，你可以修改或跳过任一项；所有项目会一次提交。</div></div><h2 class="section-title">${deduction.recipeTitle}</h2><ul class="deduction-list">${rows}</ul>`, cta: action("确认更新库存", 'data-action="commit-deduction"', true) });
+  const rows = deduction.items.length ? deduction.items.map((item) => {
+    const ageView = batchAgeView(item);
+    return `<li class="deduction-row"><div class="split"><div><strong>${item.name}</strong><small>批次 ${item.batchId}${item.precision === "unknown" ? " · 数量未知" : ""}</small>${purchaseAgeMarkup(ageView)}</div><label class="check-inline"><input type="checkbox" data-deduction-skip="${item.key}" ${item.skip ? "checked" : ""}>跳过</label></div><div class="deduction-input"><label for="deduction-${item.key.replaceAll(":", "-")}">实际使用量</label><div><input id="deduction-${item.key.replaceAll(":", "-")}" type="number" min="0" ${item.max !== null ? `max="${item.max}"` : ""} step="any" value="${item.amount}" data-deduction-amount="${item.key}" ${item.skip ? "disabled" : ""}><span>${item.unit}</span></div></div></li>`;
+  }).join("") : '<li class="notice"><strong>没有可扣减的已知库存</strong><div class="helper">缺少或未知的食材不会被擅自更新。</div></li>';
+  const migrationReview = deduction.migrationReviewRequired ? '<div class="notice"><strong>请复核旧版制作预览</strong><div>迁移前保存的扣减项没有购买日期，请确认批次与用量后再提交。</div></div>' : "";
+  return screen({ title: "库存扣减预览", back: "recipe", body: `<div class="notice"><strong>确认后才更新库存</strong><div>系统按已知购买日期从早到晚排列批次；未知或异常日期排在后面。你可以修改或跳过任一项，所有项目会一次提交。</div></div>${migrationReview}<h2 class="section-title">${deduction.recipeTitle}</h2><ul class="deduction-list">${rows}</ul>`, cta: action("确认更新库存", 'data-action="commit-deduction"', true) });
 }
 
 function successView() {
@@ -164,18 +200,46 @@ function conditionsSheet() {
 function ingredientSheet() {
   const form = state.ingredientForm;
   const isEdit = Boolean(state.editingIngredientId);
-  return `<div class="scrim"><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><header class="sheet-header"><span></span><h2 id="sheet-title" tabindex="-1">${isEdit ? "编辑食材" : "添加食材"}</h2><button class="icon-button" type="button" aria-label="关闭" data-action="close-sheet">${icon("close")}</button></header><form id="ingredient-form" class="sheet-body stack" data-form="ingredient">
+  return `<div class="scrim"><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><header class="sheet-header"><span></span><h2 id="sheet-title" tabindex="-1">${isEdit ? "编辑食材" : "添加食材"}</h2><button class="icon-button" type="button" aria-label="关闭" data-action="close-sheet">${icon("close")}</button></header><form id="ingredient-form" class="sheet-body stack" data-form="ingredient" novalidate>
     <div class="field"><label for="ingredient-name">食材名称 <span aria-hidden="true">*</span></label><input id="ingredient-name" name="name" value="${escapeAttribute(form.name)}" autocomplete="off" required><p class="helper">名称是唯一必填项；同名食材会保存为新批次。</p></div>
     <div class="field-grid"><div class="field"><label for="ingredient-quantity">数量</label><input id="ingredient-quantity" name="quantity" type="number" min="0" step="any" inputmode="decimal" value="${escapeAttribute(form.quantity)}"></div><div class="field"><label for="ingredient-unit">单位</label><select id="ingredient-unit" name="unit">${["g", "kg", "个", "把", "盒", "袋", "ml"].map((unit) => `<option ${form.unit === unit ? "selected" : ""}>${unit}</option>`).join("")}</select></div></div>
     <div class="field"><label for="ingredient-precision">数量精度</label><select id="ingredient-precision" name="precision"><option value="exact" ${form.precision === "exact" ? "selected" : ""}>精确</option><option value="approximate" ${form.precision === "approximate" ? "selected" : ""}>约数</option><option value="unknown" ${form.precision === "unknown" ? "selected" : ""}>未知</option></select></div>
-    <div class="field"><label for="ingredient-expiry">预计到期日期</label><input id="ingredient-expiry" name="expiresOn" type="date" value="${escapeAttribute(form.expiresOn)}"></div>
-    <label class="check-row"><input name="useSoon" type="checkbox" ${form.useSoon ? "checked" : ""}>标记为尽快食用</label>
+    <div class="field"><label for="ingredient-purchased">购买日期（可选）</label><input id="ingredient-purchased" name="purchasedOn" type="date" max="${localTodayKey()}" value="${escapeAttribute(form.purchasedOn)}"><p class="helper">用于购买时长提示和批次排序，不用于判断保质期或食用安全。</p></div>
     ${form.error ? `<p class="form-error" role="alert">${form.error}</p>` : ""}
   </form><div class="sheet-actions"><button class="button primary full" type="submit" form="ingredient-form">保存食材</button></div>${discardDialog()}</section></div>`;
 }
 
 function discardDialog() {
   return state.confirmDiscard ? `<div class="inline-dialog" role="alertdialog" aria-modal="true" aria-labelledby="discard-title"><h3 id="discard-title">放弃未保存的修改？</h3><p>本次输入尚未保存。</p><div class="stack"><button class="button primary full" type="button" data-action="discard-changes">放弃修改</button><button class="button full" type="button" data-action="keep-editing">继续编辑</button></div></div>` : "";
+}
+
+function resetDialog() {
+  if (!state.confirmReset) return "";
+  const blocked = state.confirmReset === "blocked";
+  const title = blocked ? "清除本地数据？" : "恢复演示数据？";
+  const message = blocked
+    ? "无法读取的原始本地数据会被清除，并替换为演示库存。此操作不可撤销。"
+    : "当前库存、条件和制作记录会被演示数据替换。此操作不可撤销。";
+  const confirmLabel = blocked ? "确认清除" : "确认恢复";
+  return `<div class="dialog-scrim"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-description"><h2 id="reset-title" tabindex="-1">${title}</h2><p id="reset-description">${message}</p><div class="stack"><button class="button primary full" type="button" data-action="confirm-reset">${confirmLabel}</button><button class="button full" type="button" data-action="cancel-reset">取消</button></div></section></div>`;
+}
+
+function storageRecoveryView() {
+  const messages = {
+    damaged: ["本地数据暂时无法读取", "检测到无法解析或结构异常的数据。为避免覆盖，原始内容仍保留在当前浏览器。"],
+    "migration-failed": ["本地数据升级未完成", "旧版数据仍保留，当前没有写入不完整的新版本。"],
+    "read-failed": ["浏览器存储暂时不可用", "无法读取本地库存，请检查浏览器设置后重试。"],
+    "write-failed": ["本地数据暂时无法保存", "初始化或升级写入未完成；原始数据会尽量保持不变。"]
+  };
+  const [title, description] = messages[state.storageStatus] || messages.damaged;
+  return `<section class="screen recovery-screen">${header("数据恢复")}<div class="screen-body task"><div class="hero-card"><p class="eyebrow">库存没有被自动覆盖</p><h2 tabindex="-1" data-page-heading>${title}</h2><p>${description}</p></div><div class="notice"><strong>建议先重试</strong><div class="helper">如果问题持续，可在确认后清除本地数据并恢复演示库存。</div></div><div class="stack recovery-actions"><button class="button primary full" type="button" data-action="retry-storage">重试读取</button><button class="button full" type="button" data-action="request-blocked-reset">清除并恢复演示数据</button></div></div></section>`;
+}
+
+function acceptLoad(result) {
+  loaded = result;
+  data = result.document;
+  state.storageStatus = result.status;
+  state.pendingDeduction = data?.session.pendingDeduction ? structuredClone(data.session.pendingDeduction) : null;
 }
 
 function escapeAttribute(value) {
@@ -186,7 +250,7 @@ function openIngredient(itemId = null) {
   const item = itemId ? data.inventory.find((entry) => entry.id === itemId) : null;
   const batch = item?.batches[0];
   state.editingIngredientId = itemId;
-  state.ingredientForm = { name: item?.name || "", quantity: batch?.quantity ?? "", unit: batch?.unit || "g", precision: batch?.precision || "exact", expiresOn: batch?.expiresOn || "", useSoon: Boolean(batch?.useSoon), error: "" };
+  state.ingredientForm = { name: item?.name || "", quantity: batch?.quantity ?? "", unit: batch?.unit || "g", precision: batch?.precision || "exact", purchasedOn: batch?.purchasedOn || "", error: "" };
   state.overlay = "ingredient";
   state.dirty = false;
   state.confirmDiscard = false;
@@ -228,7 +292,7 @@ function beginRecommendation(random = Math.random) {
 function prepareDeduction() {
   const candidate = currentRecommendation();
   if (!candidate) { navigate("no-result"); return false; }
-  state.pendingDeduction = buildDeduction(candidate, data.inventory);
+  state.pendingDeduction = buildDeduction(candidate, data.inventory, localTodayKey());
   const saved = store.update((draft) => { draft.session.pendingDeduction = structuredClone(state.pendingDeduction); });
   if (!saved.ok) {
     state.commitError = "无法保存制作预览，库存没有变化。";
@@ -271,17 +335,25 @@ function commitDeduction(forceFailure = false) {
 
 function render() {
   clearTimeout(state.drawTimer);
-  document.documentElement.classList.toggle("reduce-motion", Boolean(data.preferences.reduceMotion));
+  document.documentElement.classList.toggle("reduce-motion", Boolean(data?.preferences.reduceMotion));
+  if (!data) {
+    app.innerHTML = storageRecoveryView() + resetDialog();
+    const blockedFocus = app.querySelector(".confirm-dialog [tabindex='-1']") || app.querySelector("[data-page-heading]");
+    if (blockedFocus) blockedFocus.focus({ preventScroll: true });
+    return;
+  }
   const overlay = state.overlay === "conditions" ? conditionsSheet() : state.overlay === "ingredient" ? ingredientSheet() : "";
-  app.innerHTML = (views[state.route] || homeView)() + overlay;
-  if (state.overlay) {
+  app.innerHTML = (views[state.route] || homeView)() + overlay + resetDialog();
+  if (state.overlay || state.confirmReset) {
     const base = app.querySelector(":scope > .screen");
     if (base) { base.inert = true; base.setAttribute("aria-hidden", "true"); }
   }
   const routeChanged = state.previousRoute !== state.route;
-  const focusTarget = state.pendingFocus
-    ? app.querySelector(`[data-focus-key="${state.pendingFocus}"]`)
-    : app.querySelector(".sheet [tabindex='-1']") || (routeChanged ? app.querySelector("[data-page-heading]") : null);
+  const focusTarget = state.confirmReset
+    ? app.querySelector(".confirm-dialog [tabindex='-1']")
+    : state.pendingFocus
+      ? app.querySelector(`[data-focus-key="${state.pendingFocus}"]`)
+      : app.querySelector(".sheet [tabindex='-1']") || (routeChanged ? app.querySelector("[data-page-heading]") : null);
   state.pendingFocus = null;
   state.previousRoute = state.route;
   if (focusTarget) {
@@ -329,7 +401,37 @@ document.addEventListener("click", (event) => {
   const actionName = event.target.closest("[data-action]")?.dataset.action;
   if (actionName === "close-sheet") closeSheet();
   if (actionName === "shell-notice") announce("库存编辑将在下一步接入本地数据");
-  if (actionName === "reset-data") { data = store.reset(); state.storageRecovered = false; render(); announce("已恢复演示数据"); }
+  if (actionName === "reset-data") { state.confirmReset = "normal"; render(); }
+  if (actionName === "request-blocked-reset") { state.confirmReset = "blocked"; render(); }
+  if (actionName === "cancel-reset") { state.confirmReset = null; render(); }
+  if (actionName === "confirm-reset") {
+    try {
+      const resetMode = state.confirmReset;
+      data = store.reset();
+      loaded = { status: "ready", document: data };
+      state.storageStatus = "ready";
+      state.pendingDeduction = null;
+      state.confirmReset = null;
+      if (resetMode === "blocked") {
+        state.route = "home";
+        if (location.hash !== "#/home") location.hash = "#/home";
+        else render();
+      } else {
+        render();
+      }
+      announce("已恢复演示数据");
+    } catch {
+      state.confirmReset = null;
+      state.storageStatus = "write-failed";
+      data = null;
+      render();
+    }
+  }
+  if (actionName === "retry-storage") { acceptLoad(store.load()); render(); }
+  if (actionName === "dismiss-migration") {
+    const saved = store.update((draft) => { draft.migration.upgradeNoticeAcknowledged = true; });
+    if (saved.ok) { data = saved.document; render(); announce("升级说明已确认"); }
+  }
   if (actionName === "discard-changes") closeSheet(true);
   if (actionName === "keep-editing") { state.confirmDiscard = false; render(); }
   if (actionName === "reroll") beginRecommendation();
@@ -392,8 +494,7 @@ document.addEventListener("submit", (event) => {
       quantity: String(formData.get("quantity") || ""),
       unit: String(formData.get("unit") || "g"),
       precision: String(formData.get("precision") || "exact"),
-      expiresOn: String(formData.get("expiresOn") || ""),
-      useSoon: formData.get("useSoon") === "on"
+      purchasedOn: String(formData.get("purchasedOn") || "")
     });
     const name = String(formData.get("name") || "").trim();
     if (!name) { state.ingredientForm.error = "请输入食材名称。"; render(); return; }
@@ -402,12 +503,17 @@ document.addEventListener("submit", (event) => {
     if (quantity !== null && (!Number.isFinite(quantity) || quantity < 0)) { state.ingredientForm.error = "数量必须是大于或等于 0 的数字。"; render(); return; }
     const unit = String(formData.get("unit") || "g");
     const precision = quantity === null ? "unknown" : String(formData.get("precision") || "exact");
-    const batch = { id: `B-${Date.now().toString(36)}`, quantity, unit, precision, expiresOn: String(formData.get("expiresOn") || "") || null, useSoon: formData.get("useSoon") === "on" };
+    const rawPurchasedOn = String(formData.get("purchasedOn") || "").trim();
+    const age = derivePurchaseAge(rawPurchasedOn, localTodayKey());
+    if (rawPurchasedOn && !parseLocalDateKey(rawPurchasedOn)) { state.ingredientForm.error = "购买日期格式无效，请重新选择。"; render(); return; }
+    if (age.reason === "future") { state.ingredientForm.error = "购买日期不能晚于今天。"; render(); return; }
+    const batch = { id: `B-${Date.now().toString(36)}`, quantity, unit, precision, purchasedOn: rawPurchasedOn || null };
     const saved = store.update((draft) => {
       if (state.editingIngredientId) {
         const item = draft.inventory.find((entry) => entry.id === state.editingIngredientId);
         item.name = name;
         batch.id = item.batches[0]?.id || batch.id;
+        if (item.batches[0]?.legacy) batch.legacy = structuredClone(item.batches[0].legacy);
         item.batches[0] = batch;
       } else {
         const existing = draft.inventory.find((entry) => entry.name === name);
@@ -425,11 +531,15 @@ document.addEventListener("submit", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  const sheet = app.querySelector(".sheet");
-  if (!sheet) return;
-  if (event.key === "Escape") { closeSheet(); return; }
+  const modal = app.querySelector(".confirm-dialog") || app.querySelector(".sheet");
+  if (!modal) return;
+  if (event.key === "Escape") {
+    if (state.confirmReset) { state.confirmReset = null; render(); }
+    else closeSheet();
+    return;
+  }
   if (event.key !== "Tab") return;
-  const focusable = [...sheet.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex='0']")];
+  const focusable = [...modal.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex='0']")];
   if (!focusable.length) return;
   const first = focusable[0];
   const last = focusable.at(-1);

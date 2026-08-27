@@ -1,15 +1,15 @@
 {
   "name": "what-to-eat-portfolio-mvp",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "test": "node tests/storage.spec.mjs && node tests/recommender.spec.mjs && node tests/deduction.spec.mjs && node tests/portfolio-mvp.spec.mjs && node tests/quality.spec.mjs",
-    "test:unit": "node tests/storage.spec.mjs && node tests/recommender.spec.mjs && node tests/deduction.spec.mjs",
-    "test:browser": "node tests/portfolio-mvp.spec.mjs && node tests/quality.spec.mjs",
+    "test": "node tests/storage.spec.mjs && node tests/purchase-age.spec.mjs && node tests/recommender.spec.mjs && node tests/deduction.spec.mjs && node tests/portfolio-mvp.spec.mjs && node tests/v2-ui.spec.mjs && node tests/quality.spec.mjs",
+    "test:unit": "node tests/storage.spec.mjs && node tests/purchase-age.spec.mjs && node tests/recommender.spec.mjs && node tests/deduction.spec.mjs",
+    "test:browser": "node tests/portfolio-mvp.spec.mjs && node tests/v2-ui.spec.mjs && node tests/quality.spec.mjs",
     "test:deployment": "node tests/deployment.spec.mjs",
     "test:release": "node tests/release-preflight.spec.mjs"
   },

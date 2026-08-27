@@ -61,11 +61,12 @@ try {
   await page.getByRole("button", { name: "库存", exact: true }).click();
   record("库存入口可用", page.url().endsWith("#/inventory"));
   await page.evaluate(() => window.__MVP__.store.update((draft) => {
-    draft.inventory.push({ id: "persistence-check", name: "持久化豆腐", category: "豆制品", batches: [{ id: "PC-01", quantity: 200, unit: "g", precision: "exact", expiresOn: null, useSoon: false }] });
+    draft.inventory.push({ id: "persistence-check", name: "持久化豆腐", category: "豆制品", batches: [{ id: "PC-01", quantity: 200, unit: "g", precision: "exact", purchasedOn: null }] });
   }));
   await page.reload({ waitUntil: "load" });
   record("LocalStorage 刷新持久化", await page.getByText("持久化豆腐", { exact: true }).isVisible());
   await page.getByRole("button", { name: "恢复演示数据", exact: true }).click();
+  await page.getByRole("button", { name: "确认恢复", exact: true }).click();
   record("演示数据可恢复", await page.getByRole("heading", { name: "6 类食材", exact: true }).isVisible());
 
   await page.evaluate(() => window.__MVP__.recommend(() => 0));
@@ -103,6 +104,7 @@ try {
   await page.getByRole("heading", { name: "6 类食材", exact: true }).waitFor();
   record("首页与库存使用同一更新数据", await page.locator(".list-row").filter({ hasText: "鸡蛋" }).getByText(/3 个/).isVisible());
   await page.getByRole("button", { name: "恢复演示数据", exact: true }).click();
+  await page.getByRole("button", { name: "确认恢复", exact: true }).click();
 
   await page.getByRole("button", { name: "添加食材", exact: true }).click();
   await page.waitForFunction(() => Boolean(document.activeElement?.closest?.(".sheet")));

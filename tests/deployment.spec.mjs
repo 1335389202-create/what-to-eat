@@ -60,7 +60,7 @@ try {
   const rootResponse = await page.goto(rootBase, { waitUntil: "networkidle" });
   check("真实 HTTP 根入口返回 200", rootResponse?.status() === 200, `${rootBase} -> ${rootResponse?.status()}`);
   check("公开 Demo 首页正常渲染", await page.getByRole("heading", { name: "今天吃什么？", exact: true }).isVisible());
-  const expectedModules = ["src/app.js", "src/storage.js", "src/recommender.js", "src/deduction.js", "src/data/recipes.js"];
+  const expectedModules = ["src/app.js", "src/storage.js", "src/purchase-age.js", "src/recommender.js", "src/deduction.js", "src/data/recipes.js"];
   check("ES Modules 全部通过 HTTP 加载", expectedModules.every((file) => responses.some((response) => response.status === 200 && response.url.endsWith(file))), JSON.stringify(responses));
 
   await page.evaluate(() => localStorage.clear());

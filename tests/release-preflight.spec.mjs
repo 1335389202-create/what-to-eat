@@ -13,7 +13,7 @@ async function exists(relative) {
   try { await access(path.join(root, relative)); return true; } catch { return false; }
 }
 
-const requiredFiles = ["README.md", "LICENSE", ".gitignore", ".github/workflows/pages.yml"];
+const requiredFiles = ["README.md", "CHANGELOG.md", "LICENSE", ".gitignore", ".github/workflows/pages.yml"];
 check("公开仓库包装文件齐全", (await Promise.all(requiredFiles.map(exists))).every(Boolean));
 
 const screenshots = ["home-mobile.png", "result-mobile.png", "recipe-mobile.png", "deduction-mobile.png"].map((name) => `assets/screenshots/${name}`);
@@ -24,9 +24,11 @@ const requiredSections = ["Live Demo", "项目截图", "核心功能", "核心�
 check("README 必需章节齐全", requiredSections.every((title) => readme.includes(`## ${title}`)), requiredSections.filter((title) => !readme.includes(`## ${title}`)).join(", "));
 check("README 明确禁止 file 双击", /不能直接.*file:\/\/|请勿直接双击/.test(readme));
 check("README 如实披露 MVP 限制", ["Mock", "估算", "单设备", "AI", "登录", "地图", "真实餐厅"].every((term) => readme.includes(term)));
+const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
+check("V2.0 公开事实与 Changelog 一致", ["当前产品版本：V2.0", "151/151", "Product Process", "Metrics to Validate"].every((term) => readme.includes(term)) && ["[2.0.0] - Unreleased", "Migration", "购买时长不等同于保质期"].every((term) => changelog.includes(term)));
 
 const index = await readFile(path.join(root, "index.html"), "utf8");
-const runtimeFiles = ["src/app.js", "src/storage.js", "src/recommender.js", "src/deduction.js", "src/data/recipes.js", "src/styles.css"];
+const runtimeFiles = ["src/app.js", "src/storage.js", "src/purchase-age.js", "src/recommender.js", "src/deduction.js", "src/data/recipes.js", "src/styles.css"];
 const runtimeContents = [index, ...await Promise.all(runtimeFiles.map((file) => readFile(path.join(root, file), "utf8")))].join("\n");
 check("HTML 入口使用相对资源路径", index.includes('href="src/styles.css"') && index.includes('src="src/app.js"'));
 check("运行时代码不含本机绝对路径", !/(?<![A-Za-z])[A-Za-z]:[\\/]|file:\/\//i.test(runtimeContents));
