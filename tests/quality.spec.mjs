@@ -103,6 +103,9 @@ try {
 
   const css = await readFile(path.join(root, "src", "styles.css"), "utf8");
   check("四态均有非颜色符号", ["status-satisfied", "status-possible", "status-insufficient", "status-unknown"].every((name) => css.includes(`.${name}::before`)));
+  check("购买时长状态均有非颜色符号", ["purchase-age-prioritize", "purchase-age-long-held", "purchase-age-unknown", "purchase-age-future"].every((name) => css.includes("." + name + "::before")));
+  const appSource = await readFile(path.join(root, "src", "app.js"), "utf8");
+  check("运行时界面不再使用临期语义", !appSource.includes("临期") && !appSource.includes("预计到期") && !appSource.includes("尽快食用"));
   check("系统 Reduce Motion 样式存在", css.includes("@media (prefers-reduced-motion: reduce)"));
 
   await page.setViewportSize({ width: 1440, height: 1000 });
