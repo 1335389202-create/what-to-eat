@@ -16,8 +16,6 @@
 - [GitHub Repository](https://github.com/1335389202-create/what-to-eat)
 - [V3.0 Release](https://github.com/1335389202-create/what-to-eat/releases/tag/v3.0.0)
 
-> V3.0 当前只在 `feature/v3.0-eat-out` 本地功能分支验收，尚未合并、发布或部署。
-
 ## ✨ Features
 
 | 🏠 Home Cooking | 🍽️ Eat Out |
@@ -115,6 +113,7 @@ V3.0 补充验证覆盖：
 | [Design document](design-document.md) | UX 架构、状态与异常恢复 |
 | [Prototype spec](prototype-spec.md) | 原型与核心流程规格 |
 | [V2.0 retrospective](docs/iterations/v2.0-retrospective.md) | 购买时长迭代证据与发布结果 |
+| [V3.0 retrospective](docs/iterations/v3.0-retrospective.md) | 双场景迭代范围、验证与待验证问题 |
 | [Post-V3.0 directions](docs/iterations/post-v3.0-directions.md) | 后续候选方向与决策门槛 |
 
 <details>
