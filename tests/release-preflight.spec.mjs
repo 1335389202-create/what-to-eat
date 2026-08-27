@@ -13,22 +13,22 @@ async function exists(relative) {
   try { await access(path.join(root, relative)); return true; } catch { return false; }
 }
 
-const requiredFiles = ["README.md", "CHANGELOG.md", "LICENSE", ".gitignore", ".github/workflows/pages.yml"];
+const requiredFiles = ["README.md", "CHANGELOG.md", "LICENSE", ".gitignore", ".github/workflows/pages.yml", "assets/readme-hero.svg", "docs/iterations/post-v3.0-directions.md"];
 check("公开仓库包装文件齐全", (await Promise.all(requiredFiles.map(exists))).every(Boolean));
 
 const screenshots = ["home-mobile.png", "result-mobile.png", "recipe-mobile.png", "deduction-mobile.png"].map((name) => `assets/screenshots/${name}`);
-check("README 产品截图齐全", (await Promise.all(screenshots.map(exists))).every(Boolean));
+check("作品集截图资产齐全", (await Promise.all(screenshots.map(exists))).every(Boolean));
 
 const readme = await readFile(path.join(root, "README.md"), "utf8");
-const requiredSections = ["Live Demo", "项目截图", "核心功能", "核心用户流程", "产品设计思路", "技术方案", "推荐机制简述", "LocalStorage 数据策略", "本地运行", "运行测试", "项目结构", "Portfolio MVP 范围", "Roadmap", "已知限制"];
+const requiredSections = ["Live Demo", "✨ Features", "🧠 How It Works", "🧭 Product Evolution", "🧪 Validation", "🛠 Tech", "🗺 Future Directions", "📄 Product Docs", "Known Boundaries"];
 check("README 必需章节齐全", requiredSections.every((title) => readme.includes(`## ${title}`)), requiredSections.filter((title) => !readme.includes(`## ${title}`)).join(", "));
-check("README 明确禁止 file 双击", /不能直接.*file:\/\/|请勿直接双击/.test(readme));
-check("README 如实披露 MVP 限制", ["Mock", "估算", "单设备", "AI", "登录", "地图", "真实餐厅"].every((term) => readme.includes(term)));
+check("README 明确禁止 file 双击", /不能(?:直接|通过).*file:\/\/|请勿直接双击/.test(readme));
+check("README 如实披露 V3 边界", ["Mock", "演示数据", "当前浏览器和设备", "AI", "登录", "地图", "POI", "真实餐厅"].every((term) => readme.includes(term)));
 const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
-check("V2.0 公开事实与 Changelog 一致", ["当前产品版本：V2.0", "151/151", "Product Process", "Metrics to Validate"].every((term) => readme.includes(term)) && ["[2.0.0] - 2026-08-27", "Migration", "购买时长不等同于保质期"].every((term) => changelog.includes(term)));
+check("V2.0 公开事实与 Changelog 一致", ["当前生产版 V2.0", "151/151", "Product Evolution", "没有真实用户分析数据"].every((term) => readme.includes(term)) && ["[2.0.0] - 2026-08-27", "Migration", "购买时长不等同于保质期"].every((term) => changelog.includes(term)));
 
 const index = await readFile(path.join(root, "index.html"), "utf8");
-const runtimeFiles = ["src/app.js", "src/storage.js", "src/purchase-age.js", "src/recommender.js", "src/deduction.js", "src/data/recipes.js", "src/styles.css"];
+const runtimeFiles = ["src/app.js", "src/storage.js", "src/purchase-age.js", "src/recommender.js", "src/deduction.js", "src/data/recipes.js", "src/data/cuisines.js", "src/styles.css"];
 const runtimeContents = [index, ...await Promise.all(runtimeFiles.map((file) => readFile(path.join(root, file), "utf8")))].join("\n");
 check("HTML 入口使用相对资源路径", index.includes('href="src/styles.css"') && index.includes('src="src/app.js"'));
 check("运行时代码不含本机绝对路径", !/(?<![A-Za-z])[A-Za-z]:[\\/]|file:\/\//i.test(runtimeContents));
