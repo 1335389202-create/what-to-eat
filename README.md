@@ -8,6 +8,7 @@
 
 - 在线体验：[https://1335389202-create.github.io/what-to-eat/](https://1335389202-create.github.io/what-to-eat/)
 - GitHub 仓库：[https://github.com/1335389202-create/what-to-eat](https://github.com/1335389202-create/what-to-eat)
+- 正式版本：[`v2.0.0`](https://github.com/1335389202-create/what-to-eat/releases/tag/v2.0.0)
 
 > 本项目使用 JavaScript ES Modules，**不能直接通过 `file://` 双击 `index.html` 打开**。本地预览必须使用 HTTP Server，具体方法见[本地运行](#本地运行)。
 
@@ -82,7 +83,7 @@
 4. [V2.0 迭代计划](docs/iterations/v2.0-plan.md)：基于 V1.0 复盘与竞品研究冻结购买时长问题；
 5. [V2.0 实施计划](docs/iterations/v2.0-implementation-plan.md)：Schema、迁移、推荐、扣减、UI 与发布门禁。
 
-产品版本与 Git 发布标签分层管理：Product V2.0 描述用户可感知的产品迭代，正式发布标签将使用语义版本 `v2.0.0`。
+产品版本与 Git 发布标签分层管理：Product V2.0 描述用户可感知的产品迭代，正式发布标签为语义版本 `v2.0.0`。
 
 ## Metrics to Validate
 
@@ -169,7 +170,7 @@ npm run test:deployment
 npm run test:release
 ```
 
-当前 V2.0 本地 Release Candidate 验收结果：
+V2.0 正式发布验证结果（`v2.0.0`）：
 
 - 主项目自动化：**151/151**
   - 存储与 Schema v1 → v2 迁移：14/14
@@ -183,8 +184,11 @@ npm run test:release
 - 低保真 `prototype/` 独立基线：**76/76**。
 - HTTP 与 GitHub Pages 仓库子路径部署烟测：**13/13**。
 - 发布文件、V2.0 文档事实、相对路径和敏感信息预检：**14/14**。
+- 冻结自动化门禁合计：**254/254**，README link check：**14/14**。
+- 正式 GitHub Pages 基础 Smoke：**13/13**。
+- 线上 Schema v1 迁移、Fresh V2、完整扣减、响应式与 Reduce Motion 专项验证：**37/37**。
 
-这些结果属于本地 Release Candidate 证据，不表示 V2.0 已合并、部署或产生真实用户指标。
+V2.0 已通过 PR #1 合并并由 GitHub Actions 发布。以上结果证明当前实现和生产部署满足冻结验收，但不表示已经产生真实用户指标或验证了长期产品价值。
 
 ## 项目结构
 

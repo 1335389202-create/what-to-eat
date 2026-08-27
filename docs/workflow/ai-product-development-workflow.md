@@ -456,3 +456,49 @@ Portfolio Review
 ```
 
 在用户批准 [V2.0 Plan](../iterations/v2.0-plan.md) 之前，不开始生产代码、数据迁移或 README 发布文案更新。批准后也应先创建可验证的 Implementation Planning，再按迁移保护→规则→UX→测试→文档→发布顺序执行。
+
+## 17. V2.0 Case Study / Workflow Validation
+
+V2.0 用一次高风险数据语义变更验证了本工作流。实际路径是：
+
+```text
+Problem Discovery
+→ Benchmark
+→ Iteration Plan
+→ Change Propagation
+→ Implementation Plan
+→ Feature Branch
+→ Test-first Implementation
+→ Release Candidate
+→ Human Release Gate
+→ PR
+→ CI / Deployment Gate
+→ Production Deployment
+→ Migration Smoke
+→ Release
+→ Retrospective
+```
+
+各 Gate 实际控制的风险如下：
+
+| 阶段 / Gate | 实际输入与动作 | 控制的风险 |
+|---|---|---|
+| Problem Discovery | 识别“临期”依赖不可靠到期信息 | 避免只优化界面而保留错误产品事实 |
+| Benchmark | 比较库存日期、提醒和恢复模式 | 避免在缺少参照时直接发明复杂方案 |
+| Iteration Plan | 冻结购买日期、动态天数、+2/+3 与 Non-goals | 防止把一次语义修正扩成新版本功能堆叠 |
+| Change Propagation | 更新 PRD、UX、Prototype Spec、README 与 CHANGELOG | 防止代码、文案、数据和验收互相矛盾 |
+| Implementation Plan | 先定义 Schema、迁移事务、失败路径和测试 | 防止界面先行导致旧用户数据成为事后问题 |
+| Feature Branch | V2.0 仅在 `feature/v2.0-purchase-age` 开发 | 保持 V1.0 `main` 和线上版本稳定 |
+| Test-first Implementation | 自然日、迁移、推荐、扣减与 UI 共 151 项主测试 | 让边界和失败语义在实现过程中可重复验证 |
+| Release Candidate | RC 固定为 `fb83cc52`，完整门禁 254/254 | 防止发布对象在验证后继续漂移 |
+| Human Release Gate | 人工确认范围、安全文案和发布授权 | 保留不可由自动化替代的产品责任决策 |
+| PR | PR #1 集中呈现 Product Problem、Safety Boundary 与 Data Migration | 让代码审查同时检查产品语义与数据安全 |
+| CI / Deployment Gate | PR 无独立 Checks；合并前重跑本地门禁，合并后 Pages run 33038428516 成功 | 如实暴露当前 CI 边界，并阻止部署失败被当作发布成功 |
+| Production Deployment | `main` 合并提交 `63f1d657` 由 Actions 发布 | 确认正式环境使用已审查提交，而非手工复制文件 |
+| Migration Smoke | 在线构造 Schema v1 测试数据并验证备份、无损迁移、unknown 与完整流程 | 控制本次最高风险：旧用户数据丢失或被虚构 |
+| Release | 生产 13/13 与专项 37/37 后才创建 `v2.0.0` | 防止标签指向只在本地验证的 RC |
+| Retrospective | 区分自动化、生产证据与未验证假设 | 防止把发布质量误写成用户价值成立 |
+
+本轮还暴露一个流程缺口：仓库尚未配置 PR 事件的独立 Checks。此次通过本地完整门禁、人工 Gate 和合并后生产验证控制风险，但如果项目进入多人协作，应优先把核心测试前移到 PR，而不是依赖发布者环境。
+
+这个 Case Study 的结论不是“流程越长越安全”，而是高风险变化必须有对应证据：数据语义变化需要迁移 Gate，正式部署需要真实 URL Smoke，产品价值则仍必须等待用户证据。
