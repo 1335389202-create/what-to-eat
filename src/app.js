@@ -2,6 +2,7 @@
 
 import { createStore } from "./storage.js";
 import { recipes, findRecipe } from "./data/recipes.js";
+import { cuisines, getCuisineCandidates, pickCuisine } from "./data/cuisines.js";
 import { evaluateRecipe, pickRecommendation, statusLabels } from "./recommender.js";
 import { applyDeduction, buildDeduction } from "./deduction.js";
 import { derivePurchaseAge, localTodayKey, parseLocalDateKey, purchaseAgeBonus, purchaseAgeSafetyText, purchaseAgeText } from "./purchase-age.js";
@@ -26,6 +27,13 @@ const state = {
   returnFocus: null,
   pendingFocus: null,
   recommendation: null,
+  eatOut: {
+    taste: "any",
+    mood: "casual",
+    selectedIds: [],
+    recommendation: null,
+    confirmed: false
+  },
   noResultMessage: "",
   pendingDeduction: data?.session.pendingDeduction ? structuredClone(data.session.pendingDeduction) : null,
   commitError: ""
@@ -124,6 +132,7 @@ function homeView() {
     title: "今天",
     active: "home",
     body: `<div class="home-intro"><div><p class="eyebrow">欢迎回来</p><h2 class="page-title">把家里的食材，<br>变成今天这一顿。</h2></div><button class="motion-toggle" type="button" data-action="toggle-motion" aria-pressed="${data.preferences.reduceMotion}"><span aria-hidden="true">${data.preferences.reduceMotion ? "◼" : "◉"}</span>${data.preferences.reduceMotion ? "已减少动效" : "标准动效"}</button></div><p class="helper">数据只保存在当前浏览器，刷新后也不会丢失。</p>
+      <section class="scene-picker" aria-labelledby="scene-title"><div><p class="eyebrow">双场景决策</p><h2 id="scene-title">先选一个场景</h2><p class="helper">在家做饭，或让盲盒决定出去吃什么。</p></div><div class="scene-actions"><button class="scene-button home-scene" type="button" data-overlay="conditions"><span aria-hidden="true">🏠</span><strong>在家吃</strong><small>从库存到菜谱</small></button><button class="scene-button eat-out-scene" type="button" data-route="eat-out"><span aria-hidden="true">🍽️</span><strong>出去吃</strong><small>抽一个餐饮类型</small></button></div></section>
       <section class="hero-card home-hero"><div class="meal-illustration" aria-hidden="true"><span class="plate"></span><span class="food food-a"></span><span class="food food-b"></span><span class="food food-c"></span></div><div class="split hero-copy"><div><p class="eyebrow">${conditions.meal === "lunch" ? "午餐" : "晚餐"} · ${conditions.diners} 人</p><h2>今天吃什么？</h2></div><span class="status">库存可用</span></div><p>根据购买时长建议优先考虑部分食材，在合格菜谱里留一点随机惊喜。</p><button class="button link" type="button" data-overlay="conditions">调整推荐条件</button></section>
       ${migrationNotice}
       ${data.session.lastCompletedAt ? `<div class="notice success-notice"><strong>最近完成：${data.session.lastCompletedRecipeTitle}</strong><div class="helper">库存已经过确认并更新。</div></div>` : ""}
@@ -134,6 +143,32 @@ function homeView() {
 
 function inventoryView() {
   return screen({ title: "我的库存", active: "inventory", body: `<p class="eyebrow">个人库存</p><h2 class="page-title">${data.inventory.length} 类食材</h2><div class="notice"><strong>按购买时长合理安排</strong><div class="helper">购买日期用于推荐和扣减排序，不等同于保质期或食用安全判断。</div></div><h2 class="section-title">当前库存</h2>${inventoryRows()}<button class="button link" type="button" data-action="reset-data">恢复演示数据</button>`, cta: action("添加食材", 'data-overlay="ingredient" data-focus-key="add-ingredient"') });
+}
+
+function eatOutView() {
+  const tasteButton = (value, label) => `<button type="button" data-eat-out-condition="taste" data-value="${value}" aria-pressed="${state.eatOut.taste === value}">${label}</button>`;
+  const moodButton = (value, label) => `<button type="button" data-eat-out-condition="mood" data-value="${value}" aria-pressed="${state.eatOut.mood === value}">${label}</button>`;
+  const options = cuisines.map((item) => `<button class="cuisine-option" type="button" data-cuisine-id="${item.id}" aria-pressed="${state.eatOut.selectedIds.includes(item.id)}"><span aria-hidden="true">${item.emoji}</span><strong>${item.name}</strong></button>`).join("");
+  return screen({ title: "出去吃", back: "home", body: `<p class="eyebrow">Eat Out · 轻量盲盒</p><h2 class="page-title">把选择交给今天。</h2><p>不选类型就是完全随机；也可以先圈定几个想吃的，再交给盲盒。</p><div class="stack eat-out-filters">
+    <div><span class="field-label">口味</span><div class="segmented eat-out-segmented">${tasteButton("any", "不限")}${tasteButton("light", "清淡")}${tasteButton("spicy", "香辣")}${tasteButton("rich", "重口")}</div></div>
+    <div><span class="field-label">用餐感觉</span><div class="segmented">${moodButton("casual", "随便吃点")}${moodButton("meal", "正经吃饭")}${moodButton("treat", "想吃点好的")}</div></div>
+    <fieldset class="cuisine-fieldset"><legend>想吃的类型 <span>可不选</span></legend><div class="cuisine-grid">${options}</div></fieldset>
+    <div class="notice location-note"><strong>📍 附近餐厅推荐将在后续版本开放</strong><div class="helper">本轮只推荐餐饮类型，不使用位置、评分或店铺数据。</div></div>
+  </div>`, cta: action("帮我选", 'data-action="draw-cuisine"', true) });
+}
+
+function eatOutDrawView() {
+  return `<section class="draw-stage eat-out-draw"><div><p class="eyebrow">${state.eatOut.selectedIds.length ? `从 ${state.eatOut.selectedIds.length} 个候选里选` : "完全随机"}</p><h1 tabindex="-1" data-page-heading>正在翻开今天这一顿</h1></div><div class="cuisine-draw-mark" aria-hidden="true"><span>🍜</span><span>🍲</span><span>🥢</span></div><div class="stack"><button class="button primary full" type="button" data-route="eat-out-result">跳过并看结果</button><button class="button full" type="button" data-route="eat-out">返回条件</button></div></section>`;
+}
+
+function eatOutResultView() {
+  const cuisine = state.eatOut.recommendation;
+  if (!cuisine) return eatOutView();
+  const tags = cuisine.tastes.map((taste) => ({ light: "清淡", spicy: "香辣", rich: "重口" })[taste]).join(" · ");
+  if (state.eatOut.confirmed) {
+    return screen({ title: "今天就吃这个", back: "eat-out", body: `<article class="hero-card eat-out-result confirmed"><div class="cuisine-emoji" aria-hidden="true">${cuisine.emoji}</div><p class="eyebrow">决定好了</p><h2 tabindex="-1" data-page-heading>${cuisine.name}</h2><p>${cuisine.description}</p><div class="notice location-note"><strong>下一步：找一家想去的店</strong><div class="helper">附近餐厅推荐将在后续版本开放。</div></div></article>`, cta: action("回到今天", 'data-route="home"', true) });
+  }
+  return screen({ title: "推荐结果", back: "eat-out", body: `<article class="hero-card eat-out-result"><div class="cuisine-emoji" aria-hidden="true">${cuisine.emoji}</div><p class="eyebrow">今天就吃</p><h2 tabindex="-1" data-page-heading>${cuisine.name}</h2><p>${cuisine.description}</p><div class="cluster"><span class="taste-tag">${tags}</span></div></article><button class="button link reroll-cuisine" type="button" data-action="reroll-cuisine">换一个</button>`, cta: action("就吃这个", 'data-action="confirm-cuisine"', true) });
 }
 
 function drawView() {
@@ -267,7 +302,19 @@ function closeSheet(force = false) {
   render();
 }
 
-const views = { home: homeView, inventory: inventoryView, draw: drawView, result: resultView, recipe: recipeView, deduction: deductionView, success: successView, "no-result": noResultView, "deduction-failure": deductionFailureView };
+const views = { home: homeView, inventory: inventoryView, "eat-out": eatOutView, "eat-out-draw": eatOutDrawView, "eat-out-result": eatOutResultView, draw: drawView, result: resultView, recipe: recipeView, deduction: deductionView, success: successView, "no-result": noResultView, "deduction-failure": deductionFailureView };
+
+function beginCuisineRecommendation(random = Math.random, excludeCurrent = false) {
+  const options = { taste: state.eatOut.taste, mood: state.eatOut.mood, selectedIds: state.eatOut.selectedIds };
+  const candidates = getCuisineCandidates(options);
+  const eligible = excludeCurrent && candidates.length > 1 ? candidates.filter((item) => item.id !== state.eatOut.recommendation?.id) : candidates;
+  const picked = pickCuisine({}, random, eligible);
+  if (!picked.cuisine) return false;
+  state.eatOut.recommendation = picked.cuisine;
+  state.eatOut.confirmed = false;
+  navigate("eat-out-draw");
+  return true;
+}
 
 function beginRecommendation(random = Math.random) {
   const picked = pickRecommendation(recipes, data, random);
@@ -361,7 +408,9 @@ function render() {
     focus();
     setTimeout(focus, 32);
   }
-  if (state.route === "draw") state.drawTimer = setTimeout(() => navigate("result"), data.preferences.reduceMotion || matchMedia("(prefers-reduced-motion: reduce)").matches ? 120 : 950);
+  if (state.route === "draw" || state.route === "eat-out-draw") {
+    state.drawTimer = setTimeout(() => navigate(state.route === "draw" ? "result" : "eat-out-result"), data.preferences.reduceMotion || matchMedia("(prefers-reduced-motion: reduce)").matches ? 120 : 950);
+  }
 }
 
 function navigate(route) {
@@ -374,7 +423,7 @@ function navigate(route) {
 }
 
 function appTitle(route) {
-  return ({ inventory: "库存", draw: "盲盒抽取", result: "推荐结果", recipe: "菜谱", deduction: "库存扣减预览", success: "制作完成", "no-result": "暂无结果", "deduction-failure": "库存更新失败" })[route] || "首页";
+  return ({ inventory: "库存", "eat-out": "外出就餐", "eat-out-draw": "餐饮类型抽取", "eat-out-result": "外出推荐结果", draw: "盲盒抽取", result: "推荐结果", recipe: "菜谱", deduction: "库存扣减预览", success: "制作完成", "no-result": "暂无结果", "deduction-failure": "库存更新失败" })[route] || "首页";
 }
 
 document.addEventListener("click", (event) => {
@@ -398,7 +447,23 @@ document.addEventListener("click", (event) => {
     render();
     return;
   }
+  const eatOutCondition = event.target.closest("[data-eat-out-condition]");
+  if (eatOutCondition) {
+    state.eatOut[eatOutCondition.dataset.eatOutCondition] = eatOutCondition.dataset.value;
+    render();
+    return;
+  }
+  const cuisineOption = event.target.closest("[data-cuisine-id]");
+  if (cuisineOption) {
+    const id = cuisineOption.dataset.cuisineId;
+    state.eatOut.selectedIds = state.eatOut.selectedIds.includes(id) ? state.eatOut.selectedIds.filter((item) => item !== id) : [...state.eatOut.selectedIds, id];
+    render();
+    return;
+  }
   const actionName = event.target.closest("[data-action]")?.dataset.action;
+  if (actionName === "draw-cuisine") beginCuisineRecommendation();
+  if (actionName === "reroll-cuisine") beginCuisineRecommendation(Math.random, true);
+  if (actionName === "confirm-cuisine") { state.eatOut.confirmed = true; render(); announce(`今天就吃${state.eatOut.recommendation.name}`); }
   if (actionName === "close-sheet") closeSheet();
   if (actionName === "shell-notice") announce("库存编辑将在下一步接入本地数据");
   if (actionName === "reset-data") { state.confirmReset = "normal"; render(); }
@@ -554,5 +619,5 @@ addEventListener("hashchange", () => {
 });
 
 state.route = location.hash.replace(/^#\//, "") || "home";
-window.__MVP__ = { store, getData: () => structuredClone(data), recommend: (random = Math.random) => beginRecommendation(random), prepareDeduction, commitDeduction, getPendingDeduction: () => structuredClone(state.pendingDeduction), recipes };
+window.__MVP__ = { store, getData: () => structuredClone(data), recommend: (random = Math.random) => beginRecommendation(random), recommendCuisine: (random = Math.random, excludeCurrent = false) => beginCuisineRecommendation(random, excludeCurrent), getEatOutState: () => structuredClone(state.eatOut), prepareDeduction, commitDeduction, getPendingDeduction: () => structuredClone(state.pendingDeduction), recipes, cuisines };
 render();
