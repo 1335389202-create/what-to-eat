@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <kbd>V3.0 Local Iteration</kbd> · <kbd>Vanilla JS</kbd> · <kbd>Mobile First</kbd> · <kbd>LocalStorage</kbd>
+  <kbd>V3.0</kbd> · <kbd>Vanilla JS</kbd> · <kbd>Mobile First</kbd> · <kbd>LocalStorage</kbd>
 </p>
 
 # 今天吃什么？
@@ -12,9 +12,9 @@
 
 ## Live Demo
 
-- [在线体验（当前生产版 V2.0）](https://1335389202-create.github.io/what-to-eat/)
+- [在线体验（V3.0）](https://1335389202-create.github.io/what-to-eat/)
 - [GitHub Repository](https://github.com/1335389202-create/what-to-eat)
-- [V2.0 Release](https://github.com/1335389202-create/what-to-eat/releases/tag/v2.0.0)
+- [V3.0 Release](https://github.com/1335389202-create/what-to-eat/releases/tag/v3.0.0)
 
 > V3.0 当前只在 `feature/v3.0-eat-out` 本地功能分支验收，尚未合并、发布或部署。
 

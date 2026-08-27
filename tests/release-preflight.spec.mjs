@@ -25,7 +25,8 @@ check("README 必需章节齐全", requiredSections.every((title) => readme.incl
 check("README 明确禁止 file 双击", /不能(?:直接|通过).*file:\/\/|请勿直接双击/.test(readme));
 check("README 如实披露 V3 边界", ["Mock", "演示数据", "当前浏览器和设备", "AI", "登录", "地图", "POI", "真实餐厅"].every((term) => readme.includes(term)));
 const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
-check("V2.0 公开事实与 Changelog 一致", ["当前生产版 V2.0", "151/151", "Product Evolution", "没有真实用户分析数据"].every((term) => readme.includes(term)) && ["[2.0.0] - 2026-08-27", "Migration", "购买时长不等同于保质期"].every((term) => changelog.includes(term)));
+check("V2.0 公开事实与 Changelog 一致", ["V2.0", "151/151", "Product Evolution", "没有真实用户分析数据"].every((term) => readme.includes(term)) && ["[2.0.0] - 2026-08-27", "Migration", "购买时长不等同于保质期"].every((term) => changelog.includes(term)));
+check("V3.0 发布事实与范围一致", ["在线体验（V3.0）", "V3.0 Release", "Home + Eat Out"].every((term) => readme.includes(term)) && ["[3.0.0] - 2026-08-28", "Home / Eat Out 双场景入口", "真实餐厅", "外部 API"].every((term) => changelog.includes(term)));
 
 const index = await readFile(path.join(root, "index.html"), "utf8");
 const runtimeFiles = ["src/app.js", "src/storage.js", "src/purchase-age.js", "src/recommender.js", "src/deduction.js", "src/data/recipes.js", "src/data/cuisines.js", "src/styles.css"];
