@@ -140,7 +140,7 @@ try {
 
   await page.getByRole("button", { name: "今天", exact: true }).click();
   await page.getByRole("button", { name: "今天吃什么", exact: true }).click();
-  await page.getByRole("button", { name: "2 人", exact: true }).click();
+  await page.getByLabel("用餐人数（1–6 人）").fill("2");
   await page.getByText("更多条件", { exact: true }).click();
   await page.getByLabel("菜系").selectOption("chinese");
   await page.getByRole("button", { name: "开始抽取", exact: true }).click();

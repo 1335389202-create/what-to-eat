@@ -29,7 +29,7 @@ export function createDefaultDocument(now = new Date()) {
       { id: "potato", name: "土豆", category: "蔬菜", batches: [{ id: "P-01", quantity: 100, unit: "g", precision: "exact", purchasedOn: localDateDaysAgo(now, 8) }] }
     ],
     pantry: ["食用油", "盐", "生抽"],
-    conditions: { diners: 1, meal: "dinner", format: "regular", stockMode: "strict", cuisine: "any", diet: "any", spice: "mild", maxMinutes: 45, topUpBudget: 10 },
+    conditions: { diners: 1, meal: "dinner", format: "regular", stockMode: "strict", cuisine: "any", diet: "any", spice: "mild", maxMinutes: 45, topUpBudget: 10, calorieLimit: 0 },
     preferences: { reduceMotion: false },
     session: { lastRecipeId: null, recentRecipeIds: [], pendingDeduction: null, lastCompletedAt: null, lastCompletedRecipeTitle: null, lastDeductionSummary: [] },
     updatedAt: now.toISOString()
@@ -52,7 +52,7 @@ function hasDocumentShape(value, batchValidator) {
   return Boolean(value && Array.isArray(value.inventory) && value.inventory.every((item) =>
     item && typeof item.id === "string" && typeof item.name === "string" &&
     Array.isArray(item.batches) && item.batches.every(batchValidator)
-  ) && value.conditions && [1, 2, 4].includes(Number(value.conditions.diners)) && value.session);
+  ) && value.conditions && Number.isInteger(Number(value.conditions.diners)) && Number(value.conditions.diners) >= 1 && Number(value.conditions.diners) <= 6 && value.session);
 }
 
 function isValidV1Document(value) {

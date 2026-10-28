@@ -65,7 +65,7 @@ export function buildDeduction(candidate, inventory, todayKey = localTodayKey())
   }
   return {
     recipeId: candidate.recipe.id,
-    recipeTitle: candidate.recipe.title,
+    recipeTitle: candidate.title || candidate.recipe.title,
     diners: candidate.diners,
     createdAt: new Date().toISOString(),
     items
@@ -89,5 +89,23 @@ export function applyDeduction(document, deduction) {
   next.inventory = next.inventory
     .map((item) => ({ ...item, batches: item.batches.filter((batch) => batch.quantity !== 0) }))
     .filter((item) => item.batches.length > 0);
+  return next;
+}
+
+export function adjustInventoryBatch(document, { itemId, batchId, action, amount }) {
+  const next = clone(document);
+  const item = next.inventory.find((entry) => entry.id === itemId);
+  const batch = item?.batches.find((entry) => entry.id === batchId);
+  if (!batch) throw new Error("库存批次已变化，请重新打开库存。");
+  if (action === "deduct") {
+    const quantity = Number(amount);
+    if (batch.quantity === null) throw new Error("数量未知的批次不能直接扣减，请先编辑数量。");
+    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > Number(batch.quantity) || Math.abs(quantity * 100 - Math.round(quantity * 100)) > 1e-8) throw new TypeError("扣减量须大于 0、不超过库存，且最多保留两位小数。");
+    batch.quantity = Math.round((Number(batch.quantity) - quantity) * 100) / 100;
+  } else if (action !== "delete") {
+    throw new TypeError("未知的库存操作。");
+  }
+  if (action === "delete" || batch.quantity === 0) item.batches = item.batches.filter((entry) => entry.id !== batchId);
+  next.inventory = next.inventory.filter((entry) => entry.batches.length);
   return next;
 }

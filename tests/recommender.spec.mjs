@@ -1,6 +1,6 @@
 import { createDefaultDocument } from "../src/storage.js";
 import { recipes, findRecipe } from "../src/data/recipes.js";
-import { evaluateRecipe, getCandidateWeight, getCandidates, matchIngredient, pickRecommendation } from "../src/recommender.js";
+import { evaluateRecipe, getCandidateWeight, getCandidates, getMealCandidates, matchIngredient, pickRecommendation } from "../src/recommender.js";
 
 const results = [];
 function check(name, condition, detail = "") {
@@ -10,7 +10,7 @@ function check(name, condition, detail = "") {
 
 const today = "2026-08-26";
 const doc = createDefaultDocument(new Date(2026, 7, 26, 12));
-check("菜谱数量位于冻结范围", recipes.length >= 15 && recipes.length <= 30, "实际 " + recipes.length + " 道");
+check("结构化菜谱已扩充", recipes.length >= 30, "实际 " + recipes.length + " 道");
 check("系统菜谱 ID 唯一", new Set(recipes.map((recipe) => recipe.id)).size === recipes.length);
 
 const satisfied = matchIngredient({ id: "tomato", name: "西红柿", amount: 180, unit: "g", pricePerUnit: .01 }, doc.inventory, doc.pantry, 1);
@@ -90,5 +90,29 @@ check("无候选返回可恢复说明", noResult.candidate === null && /放宽|�
 const randomPick = pickRecommendation(recipes, doc, () => .6, today);
 check("随机结果始终来自合格候选", randomPick.candidate && randomPick.candidates.some((candidate) => candidate.recipe.id === randomPick.candidate.recipe.id));
 check("所有推荐理由都来自购买时长或真实库存条件", randomPick.candidates.every((candidate) => /已购买|用餐条件/.test(candidate.reason)));
+
+for (const diners of [1, 2, 3, 4]) {
+  const people = createDefaultDocument(new Date(2026, 7, 26, 12));
+  people.conditions.diners = diners;
+  const meals = getMealCandidates(recipes, people, today);
+  check(`${diners} 人正餐按人数配菜`, meals.length > 0 && meals.every((candidate) =>
+    candidate.dishes.length >= Math.max(2, diners) && candidate.dishes.length <= diners + 1 &&
+    candidate.dishes.some((dish) => dish.role === "vegetable") && candidate.dishes.some((dish) => dish.role === "protein" || dish.ingredients.some((item) => ["chicken", "egg", "tofu", "beef", "pork", "fish"].includes(item.id)))
+  ), String(meals.length));
+}
+for (const diners of [5, 6]) {
+  const people = createDefaultDocument(new Date(2026, 7, 26, 12));
+  people.conditions = { ...people.conditions, diners, stockMode: "topup", topUpBudget: 200 };
+  const meals = getMealCandidates(recipes, people, today);
+  check(`${diners} 人补买模式可形成对应菜品数`, meals.length > 0 && meals.every((candidate) => candidate.dishes.length >= diners && candidate.dishes.length <= diners + 1));
+}
+const healthy = createDefaultDocument(new Date(2026, 7, 26, 12));
+healthy.conditions.diners = 4;
+healthy.conditions.calorieLimit = 650;
+const healthyMeals = getMealCandidates(recipes, healthy, today);
+check("健康餐约束整顿每人热量", healthyMeals.length > 0 && healthyMeals.every((candidate) => candidate.caloriesPerPerson <= 650));
+check("同名食材跨菜品合并需求", healthyMeals.every((candidate) => new Set(candidate.ingredients.map((item) => `${item.id}:${item.unit}`)).size === candidate.ingredients.length));
+healthy.conditions.calorieLimit = 450;
+check("热量上限无法满足时不伪造结果", getMealCandidates(recipes, healthy, today).length === 0);
 
 console.log(JSON.stringify({ passed: results.length, total: results.length, results }, null, 2));

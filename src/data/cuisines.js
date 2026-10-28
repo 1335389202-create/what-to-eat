@@ -9,7 +9,15 @@ export const cuisines = [
   { id: "hotpot", emoji: "🍲", name: "火锅", description: "热乎、满足，适合今天不想纠结的时候。", tastes: ["spicy", "rich"], moods: ["meal", "treat"] },
   { id: "homestyle", emoji: "🍳", name: "小炒 / 家常菜", description: "熟悉、踏实，是大多数时候都不会出错的一顿。", tastes: ["light", "rich"], moods: ["casual", "meal"] },
   { id: "convenience", emoji: "🏪", name: "便利店", description: "快速组合一顿，适合今天只想随便吃点。", tastes: ["light", "rich"], moods: ["casual"] },
-  { id: "lightmeal", emoji: "🥗", name: "轻食", description: "清爽简单，给忙碌的一天留一点轻盈。", tastes: ["light"], moods: ["casual", "meal"] }
+  { id: "lightmeal", emoji: "🥗", name: "轻食", description: "清爽简单，给忙碌的一天留一点轻盈。", tastes: ["light"], moods: ["casual", "meal"] },
+  { id: "japanese", emoji: "🍣", name: "日料", description: "寿司、丼饭或定食，换一种清爽的节奏。", tastes: ["light", "rich"], moods: ["meal", "treat"] },
+  { id: "noodles", emoji: "🍜", name: "粉面", description: "一碗热汤面或米粉，简单又管饱。", tastes: ["light", "spicy", "rich"], moods: ["casual", "meal"] },
+  { id: "dumplings", emoji: "🥟", name: "饺子 / 馄饨", description: "有主食也有馅料，适合踏实吃一顿。", tastes: ["light", "rich"], moods: ["casual", "meal"] },
+  { id: "bbq", emoji: "🍢", name: "烧烤", description: "香气十足，适合想吃得热闹一点。", tastes: ["spicy", "rich"], moods: ["meal", "treat"] },
+  { id: "malatang", emoji: "🥘", name: "麻辣烫", description: "自己搭配食材，热乎又有变化。", tastes: ["spicy", "rich"], moods: ["casual", "meal"] },
+  { id: "western", emoji: "🍝", name: "西式简餐", description: "意面、三明治或沙拉，换个口味。", tastes: ["light", "rich"], moods: ["casual", "meal"] },
+  { id: "pizza", emoji: "🍕", name: "披萨", description: "轻松分享的一餐，适合想吃点满足的。", tastes: ["rich"], moods: ["meal", "treat"] },
+  { id: "claypot", emoji: "🫕", name: "砂锅 / 煲仔饭", description: "热气腾腾，适合慢慢吃一顿。", tastes: ["rich", "light"], moods: ["meal"] }
 ];
 
 export function getCuisineCandidates(options = {}, source = cuisines) {

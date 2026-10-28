@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <kbd>V3.0</kbd> · <kbd>Vanilla JS</kbd> · <kbd>Mobile First</kbd> · <kbd>LocalStorage</kbd>
+  <kbd>Home + Eat Out</kbd> · <kbd>Vanilla JS</kbd> · <kbd>Mobile First</kbd> · <kbd>LocalStorage</kbd>
 </p>
 
 # 今天吃什么？
@@ -12,7 +12,7 @@
 
 ## Live Demo
 
-- [在线体验（V3.0）](https://1335389202-create.github.io/what-to-eat/)
+- [在线体验（当前演示）](https://1335389202-create.github.io/what-to-eat/)
 - [GitHub Repository](https://github.com/1335389202-create/what-to-eat)
 - [V3.0 Release](https://github.com/1335389202-create/what-to-eat/releases/tag/v3.0.0)
 
@@ -21,7 +21,7 @@
 | 🏠 Home Cooking | 🍽️ Eat Out |
 |---|---|
 | Inventory-aware recommendation | Preference filters |
-| Recipe and scaled ingredients | Cuisine draw |
+| Multi-dish menus, 1–6 diners, estimated calorie cap | Cuisine draw |
 | Cooking confirmation | Recommendation and reroll |
 | Atomic inventory deduction | Clear future restaurant boundary |
 
@@ -33,6 +33,8 @@
 - 购买时长参与推荐加权与扣减排序，但不推断保质期或食用安全；
 - 推荐结果解释库存状态、购买时长贡献和 Mock 补买估价；
 - 只有确认制作后才预览并一次性更新库存，失败时保持原数据。
+- 正常正餐按人数搭配主菜、蔬菜和必要的蛋白质 / 主食，菜品数为人数道或多一道；健康餐可按每人估算热量上限筛选；
+- 消耗或丢弃食材时，可直接扣减或删除指定库存批次。
 
 ### 🍽️ Eat Out
 
@@ -43,13 +45,13 @@
 - 结果只展示类型、描述和口味标签；
 - 不伪造距离、评分、人均、店铺或排队数据。
 
-当前类型：韩餐、泰餐、川菜、湘菜、粤菜、火锅、小炒 / 家常菜、便利店、轻食。
+当前提供 17 种餐饮类型，新增日料、粉面、饺子 / 馄饨、烧烤、麻辣烫、西式简餐、披萨和砂锅 / 煲仔饭等。
 
 ## 🧠 How It Works
 
 ```text
 今天吃什么？
-  ├─ 在家吃 → 库存 → 条件过滤 → 购买时长加权 → 菜谱 → 制作 → 原子扣减
+  ├─ 在家吃 → 库存 → 人数与热量条件 → 荤素菜单 → 制作 → 原子扣减
   └─ 出去吃 → 轻量偏好 / 候选类型 → 随机抽取 → 餐饮类型 → 换一个 / 确认
 ```
 
@@ -69,6 +71,8 @@ V3.0  Home + Eat Out
 - **V2.0**：增加购买时长优先级、Schema v1 → v2 迁移与更稳健的数据恢复；
 - **V3.0**：保留 Home Cooking 主流程，增加不依赖真实餐厅数据的 Eat Out MVP。
 
+当前演示在 V3.0 基础上补充了多人配菜、健康餐筛选、直接库存调整与更多本地菜谱 / 餐饮类型；[本次迭代说明](docs/iterations/balanced-meals-inventory.md)。
+
 ## 🧪 Validation
 
 V2.0 正式发布门禁保持真实可追溯：主项目 151/151、部署烟测 13/13、发布预检 14/14；冻结自动化门禁合计 254/254。详见 [V2.0 retrospective](docs/iterations/v2.0-retrospective.md)。
@@ -80,6 +84,8 @@ V3.0 补充验证覆盖：
 - Home Cooking smoke 与 V2 purchase-age regression；
 - 320 / 390 / 768 / 1440px responsive smoke；
 - keyboard、Reduce Motion 与 no console error。
+
+当前迭代增加菜单菜品数、整顿热量上限、跨菜品食材合并、手动库存扣减 / 删除和扩充类型的回归测试。热量是演示估算，不能用于精确营养或医疗决策。
 
 本仓库没有真实用户分析数据，不虚构转化率、留存或满意度。后续重点验证决策完成率、完成用时、换一个频率，以及购买时长提示是否影响选择。
 
@@ -114,6 +120,7 @@ V3.0 补充验证覆盖：
 | [Prototype spec](prototype-spec.md) | 原型与核心流程规格 |
 | [V2.0 retrospective](docs/iterations/v2.0-retrospective.md) | 购买时长迭代证据与发布结果 |
 | [V3.0 retrospective](docs/iterations/v3.0-retrospective.md) | 双场景迭代范围、验证与待验证问题 |
+| [Balanced meals & inventory](docs/iterations/balanced-meals-inventory.md) | 多人菜单、健康餐与库存直接调整 |
 | [Post-V3.0 directions](docs/iterations/post-v3.0-directions.md) | 后续候选方向与决策门槛 |
 
 <details>

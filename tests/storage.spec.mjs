@@ -72,6 +72,19 @@ check("Schema v2 更新后可重新加载", () => {
   assert.equal(reloaded.document.conditions.diners, 2);
 });
 
+check("自填人数与热量上限在旧 Schema v2 上保持兼容", () => {
+  const storage = memoryStorage();
+  const oldDocument = createDefaultDocument();
+  delete oldDocument.conditions.calorieLimit;
+  storage.seed(STORAGE_KEY, JSON.stringify(oldDocument));
+  const store = createStore(storage);
+  assert.equal(store.load().status, "ready");
+  assert.equal(store.update((draft) => { draft.conditions.diners = 3; draft.conditions.calorieLimit = 650; }).ok, true);
+  const reloaded = createStore(storage).load();
+  assert.equal(reloaded.document.conditions.diners, 3);
+  assert.equal(reloaded.document.conditions.calorieLimit, 650);
+});
+
 check("Schema v1 无损迁移并备份原始 payload", () => {
   const storage = memoryStorage();
   const raw = JSON.stringify(v1Fixture());

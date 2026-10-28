@@ -3,8 +3,8 @@
 import { createStore } from "./storage.js";
 import { recipes, findRecipe } from "./data/recipes.js";
 import { cuisines, getCuisineCandidates, pickCuisine } from "./data/cuisines.js";
-import { evaluateRecipe, pickRecommendation, statusLabels } from "./recommender.js";
-import { applyDeduction, buildDeduction } from "./deduction.js";
+import { evaluateMeal, evaluateRecipe, pickRecommendation, statusLabels } from "./recommender.js";
+import { adjustInventoryBatch, applyDeduction, buildDeduction } from "./deduction.js";
 import { derivePurchaseAge, localTodayKey, parseLocalDateKey, purchaseAgeBonus, purchaseAgeSafetyText, purchaseAgeText } from "./purchase-age.js";
 
 const app = document.querySelector("#app");
@@ -20,7 +20,9 @@ const state = {
   storageStatus: loaded.status,
   editingIngredientId: null,
   ingredientForm: null,
+  adjustment: null,
   conditionsDraft: null,
+  conditionError: "",
   dirty: false,
   confirmDiscard: false,
   confirmReset: null,
@@ -107,12 +109,14 @@ function inventoryRows() {
     const amount = !known.length ? "余量未填" : units.size === 1 ? `${known.some((batch) => batch.precision === "approximate") ? "约 " : ""}${total} ${known[0].unit}` : "单位待确认";
     const note = item.batches.some((batch) => batch.precision === "unknown") ? `${item.batches.length} 个批次 · 数量含未知` : `${item.batches.length} 个批次`;
     const ageView = itemAgeView(item, todayKey);
-    return `<li class="list-row inventory-row"><div><strong>${escapeAttribute(item.name)}</strong><small>${amount} · ${note}</small>${purchaseAgeMarkup(ageView)}</div><div class="list-actions"><button class="list-action" type="button" data-edit-ingredient="${escapeAttribute(item.id)}">编辑</button></div></li>`;
+    return `<li class="list-row inventory-row"><div><strong>${escapeAttribute(item.name)}</strong><small>${amount} · ${note}</small>${purchaseAgeMarkup(ageView)}</div><div class="list-actions"><button class="list-action" type="button" data-edit-ingredient="${escapeAttribute(item.id)}">编辑</button><button class="list-action" type="button" data-adjust-ingredient="${escapeAttribute(item.id)}">调整库存</button></div></li>`;
   }).join("")}</ul>`;
 }
 
 function currentRecommendation() {
   if (state.recommendation) return state.recommendation;
+  const meal = data.session.lastMealRecipeIds?.map(findRecipe);
+  if (meal?.length && meal.every(Boolean)) return evaluateMeal(meal, data);
   const recipe = findRecipe(data.session.lastRecipeId);
   return recipe ? evaluateRecipe(recipe, data) : null;
 }
@@ -142,7 +146,7 @@ function homeView() {
 }
 
 function inventoryView() {
-  return screen({ title: "我的库存", active: "inventory", body: `<p class="eyebrow">个人库存</p><h2 class="page-title">${data.inventory.length} 类食材</h2><div class="notice"><strong>按购买时长合理安排</strong><div class="helper">购买日期用于推荐和扣减排序，不等同于保质期或食用安全判断。</div></div><h2 class="section-title">当前库存</h2>${inventoryRows()}<button class="button link" type="button" data-action="reset-data">恢复演示数据</button>`, cta: action("添加食材", 'data-overlay="ingredient" data-focus-key="add-ingredient"') });
+  return screen({ title: "我的库存", active: "inventory", body: `<p class="eyebrow">个人库存</p><h2 class="page-title">${data.inventory.length} 类食材</h2><div class="notice"><strong>按购买时长合理安排</strong><div class="helper">购买日期用于推荐和扣减排序，不等同于保质期或食用安全判断。食材消耗或丢弃时，也可直接调整库存。</div></div><h2 class="section-title">当前库存</h2>${inventoryRows()}<button class="button link" type="button" data-action="reset-data">恢复演示数据</button>`, cta: action("添加食材", 'data-overlay="ingredient" data-focus-key="add-ingredient"') });
 }
 
 function eatOutView() {
@@ -179,14 +183,16 @@ function drawView() {
 function resultView() {
   const candidate = currentRecommendation();
   if (!candidate) return noResultView();
-  return screen({ title: "推荐结果", back: "home", body: `<article class="hero-card result-card"><div class="reveal-mark" aria-hidden="true">✦</div><span class="status status-${candidate.status}">库存${statusLabels[candidate.status]}</span><p class="eyebrow">盲盒为你选中了</p><h2 tabindex="-1" data-page-heading>${candidate.recipe.title}</h2><p class="helper">${candidate.diners} 人 · 约 ${candidate.recipe.minutes} 分钟 · 营养数据为估算</p>${candidate.missingCost > 0 ? `<p class="helper">预计补买约 ¥${candidate.missingCost.toFixed(1)}，不超过本次补买预算。</p>` : ""}<div class="notice"><strong>为什么推荐</strong><div>${candidate.reason}</div></div></article><button class="button link" type="button" data-action="reroll">再来一次</button>`, cta: action("查看菜谱", 'data-route="recipe"', true) });
+  const dishes = candidate.dishes || [candidate.recipe];
+  return screen({ title: "推荐结果", back: "home", body: `<article class="hero-card result-card"><div class="reveal-mark" aria-hidden="true">✦</div><span class="status status-${candidate.status}">库存${statusLabels[candidate.status]}</span><p class="eyebrow">盲盒为你选中了</p><h2 tabindex="-1" data-page-heading>${candidate.recipe.title}</h2>${dishes.length > 1 ? `<p class="helper">再搭配：${dishes.slice(1).map((dish) => dish.title).join(" · ")}</p>` : ""}<p class="helper">${candidate.diners} 人 · 约 ${candidate.minutes || candidate.recipe.minutes} 分钟 · 约 ${candidate.caloriesPerPerson || candidate.recipe.calories} kcal / 人（估算）</p>${Number(data.conditions.calorieLimit) ? `<p class="helper">本次热量上限：${data.conditions.calorieLimit} kcal / 人</p>` : ""}${candidate.missingCost > 0 ? `<p class="helper">预计补买约 ¥${candidate.missingCost.toFixed(1)}，不超过本次补买预算。</p>` : ""}<div class="notice"><strong>为什么推荐</strong><div>${candidate.reason}</div></div></article><button class="button link" type="button" data-action="reroll">再来一次</button>`, cta: action("查看菜谱", 'data-route="recipe"', true) });
 }
 
 function recipeView() {
   const candidate = currentRecommendation();
   if (!candidate) return noResultView();
   const recipe = candidate.recipe;
-  return screen({ title: "菜谱", back: "result", body: `<p class="eyebrow">结构化菜谱</p><h2 class="page-title">${recipe.title}</h2><div class="cluster"><span class="status">${candidate.diners} 人份</span><span>约 ${recipe.minutes} 分钟</span><span>${recipe.difficulty}</span></div><h2 class="section-title">食材与库存</h2>${requirementRows(candidate)}<h2 class="section-title">步骤</h2><ol class="step-list">${recipe.steps.map((step) => `<li>${step}</li>`).join("")}</ol><div class="metric-grid"><div class="metric"><strong>约 ${recipe.calories * candidate.diners} kcal</strong><small>热量估算</small></div><div class="metric"><strong>约 ${recipe.protein * candidate.diners} g</strong><small>蛋白质估算</small></div></div>`, cta: action("我做了这顿饭", 'data-action="prepare-deduction"', true) });
+  const dishes = candidate.dishes || [recipe];
+  return screen({ title: "菜谱", back: "result", body: `<p class="eyebrow">${dishes.length > 1 ? "搭配菜单" : "结构化菜谱"}</p><h2 class="page-title">${recipe.title}</h2>${dishes.length > 1 ? `<p class="helper">搭配 ${dishes.slice(1).map((dish) => dish.title).join(" · ")}</p>` : ""}<div class="cluster"><span class="status">${candidate.diners} 人份</span><span>约 ${candidate.minutes || recipe.minutes} 分钟</span><span>${recipe.difficulty}</span></div><h2 class="section-title">食材与库存</h2>${requirementRows(candidate)}<h2 class="section-title">做法</h2>${dishes.map((dish) => `<section class="dish-steps"><h3>${dish.title}</h3><ol class="step-list">${dish.steps.map((step) => `<li>${step}</li>`).join("")}</ol></section>`).join("")}<div class="metric-grid"><div class="metric"><strong>约 ${(candidate.caloriesPerPerson || recipe.calories) * candidate.diners} kcal</strong><small>整顿热量估算 · 每人约 ${candidate.caloriesPerPerson || recipe.calories} kcal</small></div><div class="metric"><strong>约 ${(candidate.proteinPerPerson || recipe.protein) * candidate.diners} g</strong><small>整顿蛋白质估算</small></div></div><p class="helper">热量按演示菜谱估算，实际会随食材品牌、用油和份量变化。</p>`, cta: action("我做了这顿饭", 'data-action="prepare-deduction"', true) });
 }
 
 function noResultView() {
@@ -217,9 +223,10 @@ function conditionsSheet() {
   const conditions = state.conditionsDraft || structuredClone(data.conditions);
   const optionButton = (key, value, label) => `<button type="button" data-condition="${key}" data-value="${value}" aria-pressed="${String(conditions[key]) === String(value)}">${label}</button>`;
   return `<div class="scrim"><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><header class="sheet-header"><span></span><h2 id="sheet-title" tabindex="-1">推荐条件</h2><button class="icon-button" type="button" aria-label="关闭" data-action="close-sheet">${icon("close")}</button></header><form id="conditions-form" class="sheet-body stack" data-form="conditions">
-    <div><span class="field-label">用餐人数</span><div class="segmented">${optionButton("diners", 1, "1 人")}${optionButton("diners", 2, "2 人")}${optionButton("diners", 4, "4 人")}</div></div>
+    <div class="field"><label for="condition-diners">用餐人数（1–6 人）</label><input id="condition-diners" type="number" min="1" max="6" step="1" value="${conditions.diners}" data-condition-input="diners" required><p class="helper">正常正餐推荐人数道菜，或多一道；1 人最多两道。</p></div>
     <div><span class="field-label">餐次</span><div class="segmented">${optionButton("meal", "lunch", "午餐")}${optionButton("meal", "dinner", "晚餐")}</div></div>
     <div><span class="field-label">结果形式</span><div class="segmented">${optionButton("format", "simple", "简餐")}${optionButton("format", "regular", "正常正餐")}${optionButton("format", "single", "一道菜")}</div></div>
+    <div class="field"><label for="condition-calories">健康餐 · 每人热量上限</label><select id="condition-calories" data-condition-input="calorieLimit"><option value="0" ${!Number(conditions.calorieLimit) ? "selected" : ""}>不限制</option><option value="450" ${Number(conditions.calorieLimit) === 450 ? "selected" : ""}>约 450 kcal</option><option value="550" ${Number(conditions.calorieLimit) === 550 ? "selected" : ""}>约 550 kcal</option><option value="650" ${Number(conditions.calorieLimit) === 650 ? "selected" : ""}>约 650 kcal</option><option value="800" ${Number(conditions.calorieLimit) === 800 ? "selected" : ""}>约 800 kcal</option></select><p class="helper">按演示菜谱估算筛选整顿饭；实际热量会随食材和做法变化。</p></div>
     <div><span class="field-label">库存模式</span><div class="segmented">${optionButton("stockMode", "strict", "尽量只用库存")}${optionButton("stockMode", "topup", "允许少量补买")}</div></div>
     <details><summary>更多条件</summary><div class="stack">
       <div class="field"><label for="condition-cuisine">菜系</label><select id="condition-cuisine" data-condition-input="cuisine"><option value="any" ${conditions.cuisine === "any" ? "selected" : ""}>不限</option><option value="chinese" ${conditions.cuisine === "chinese" ? "selected" : ""}>中式家常</option><option value="western" ${conditions.cuisine === "western" ? "selected" : ""}>西式简餐</option></select></div>
@@ -228,7 +235,7 @@ function conditionsSheet() {
       <div class="field"><label for="condition-minutes">最长烹饪时间</label><select id="condition-minutes" data-condition-input="maxMinutes"><option value="20" ${Number(conditions.maxMinutes) === 20 ? "selected" : ""}>20 分钟</option><option value="30" ${Number(conditions.maxMinutes) === 30 ? "selected" : ""}>30 分钟</option><option value="45" ${Number(conditions.maxMinutes) === 45 ? "selected" : ""}>45 分钟</option></select></div>
       ${conditions.stockMode === "topup" ? `<div class="field"><label for="condition-budget">本次补买预算（元）</label><input id="condition-budget" type="number" min="0" step="1" value="${Number(conditions.topUpBudget || 0)}" data-condition-input="topUpBudget"><p class="helper">只计算这顿饭缺少食材的 Mock 估价，不是外出人均预算。</p></div>` : ""}
     </div></details>
-    <div class="notice"><strong>当前条件</strong><div>${conditions.meal === "lunch" ? "午餐" : "晚餐"} · ${conditions.diners} 人 · ${conditions.format === "regular" ? "正常正餐" : conditions.format === "simple" ? "简餐" : "一道菜"}</div></div>
+    <div class="notice"><strong>当前条件</strong><div>${conditions.meal === "lunch" ? "午餐" : "晚餐"} · ${conditions.diners} 人 · ${conditions.format === "regular" ? "正常正餐" : conditions.format === "simple" ? "简餐" : "一道菜"}</div></div>${state.conditionError ? `<p class="form-error" role="alert">${state.conditionError}</p>` : ""}
   </form><div class="sheet-actions"><button class="button primary full" type="submit" form="conditions-form">开始抽取</button></div>${discardDialog()}</section></div>`;
 }
 
@@ -242,6 +249,20 @@ function ingredientSheet() {
     <div class="field"><label for="ingredient-purchased">购买日期（可选）</label><input id="ingredient-purchased" name="purchasedOn" type="date" max="${localTodayKey()}" value="${escapeAttribute(form.purchasedOn)}"><p class="helper">用于购买时长提示和批次排序，不用于判断保质期或食用安全。</p></div>
     ${form.error ? `<p class="form-error" role="alert">${form.error}</p>` : ""}
   </form><div class="sheet-actions"><button class="button primary full" type="submit" form="ingredient-form">保存食材</button></div>${discardDialog()}</section></div>`;
+}
+
+function adjustmentSheet() {
+  const form = state.adjustment;
+  const item = data.inventory.find((entry) => entry.id === form.itemId);
+  const batch = item?.batches.find((entry) => entry.id === form.batchId);
+  if (!item || !batch) return "";
+  const options = item.batches.map((entry) => `<option value="${escapeAttribute(entry.id)}" ${entry.id === batch.id ? "selected" : ""}>批次 ${escapeAttribute(entry.id)} · ${entry.quantity === null ? "数量未知" : `${entry.quantity} ${escapeAttribute(entry.unit)}`}</option>`).join("");
+  return `<div class="scrim"><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><header class="sheet-header"><span></span><h2 id="sheet-title" tabindex="-1">调整 ${escapeAttribute(item.name)} 库存</h2><button class="icon-button" type="button" aria-label="关闭" data-action="close-sheet">${icon("close")}</button></header><form id="adjustment-form" class="sheet-body stack" data-form="inventory-adjustment">
+    <div class="field"><label for="adjust-batch">选择批次</label><select id="adjust-batch" data-adjust-batch>${options}</select></div>
+    <div class="notice"><strong>当前批次：${batch.quantity === null ? "数量未知" : `${batch.quantity} ${escapeAttribute(batch.unit)}`}</strong><div class="helper">${purchaseAgeMarkup(batchAgeView(batch))}</div></div>
+    <div class="field"><label for="adjust-amount">直接扣减数量（${escapeAttribute(batch.unit)}）</label><input id="adjust-amount" name="amount" type="number" min="0.01" max="${batch.quantity ?? ""}" step="0.01" inputmode="decimal" value="${escapeAttribute(form.amount || "")}" ${batch.quantity === null ? "disabled" : ""}><p class="helper">用于实际消耗或损耗，最多两位小数；保存后立即更新本地库存。数量未知时请先编辑。</p></div>
+    ${form.error ? `<p class="form-error" role="alert">${escapeAttribute(form.error)}</p>` : ""}
+  </form><div class="sheet-actions stack"><button class="button primary full" type="submit" form="adjustment-form" ${batch.quantity === null ? "disabled" : ""}>确认扣减</button><button class="button full" type="button" data-action="request-delete-batch">删除此批次</button></div>${form.confirmDelete ? `<div class="inline-dialog inventory-confirm" role="alertdialog" aria-modal="true" aria-labelledby="inventory-delete-title"><h3 id="inventory-delete-title" tabindex="-1">删除这个库存批次？</h3><p>批次 ${escapeAttribute(batch.id)} 将从本地库存移除；若这是最后一个批次，食材也会移除。</p><div class="stack"><button class="button primary full" type="button" data-action="confirm-delete-batch">确认删除</button><button class="button full" type="button" data-action="cancel-delete-batch">取消</button></div></div>` : ""}</section></div>`;
 }
 
 function discardDialog() {
@@ -292,12 +313,35 @@ function openIngredient(itemId = null) {
   render();
 }
 
+function openAdjustment(itemId) {
+  const item = data.inventory.find((entry) => entry.id === itemId);
+  if (!item?.batches.length) return;
+  state.adjustment = { itemId, batchId: item.batches[0].id, amount: "", error: "", confirmDelete: false };
+  state.overlay = "adjustment";
+  state.dirty = false;
+  render();
+}
+
+function saveInventoryAdjustment(action, amount = null) {
+  const { itemId, batchId } = state.adjustment;
+  const saved = store.update((draft) => adjustInventoryBatch(draft, { itemId, batchId, action, amount }));
+  if (!saved.ok) { state.adjustment.error = saved.error?.message || "库存未更新，请重试。"; state.adjustment.confirmDelete = false; render(); return; }
+  data = saved.document;
+  state.adjustment = null;
+  state.overlay = null;
+  state.dirty = false;
+  render();
+  announce(action === "delete" ? "库存批次已删除" : "库存已扣减");
+}
+
 function closeSheet(force = false) {
   if (state.dirty && !force) { state.confirmDiscard = true; render(); return; }
   state.overlay = null;
   state.dirty = false;
   state.confirmDiscard = false;
   state.conditionsDraft = null;
+  state.conditionError = "";
+  state.adjustment = null;
   state.pendingFocus = state.returnFocus;
   render();
 }
@@ -327,8 +371,10 @@ function beginRecommendation(random = Math.random) {
   state.recommendation = picked.candidate;
   state.noResultMessage = "";
   const recipeId = picked.candidate.recipe.id;
+  const mealRecipeIds = picked.candidate.dishes.map((dish) => dish.id);
   const saved = store.update((draft) => {
     draft.session.lastRecipeId = recipeId;
+    draft.session.lastMealRecipeIds = mealRecipeIds;
     draft.session.recentRecipeIds = [recipeId, ...draft.session.recentRecipeIds.filter((id) => id !== recipeId)].slice(0, 5);
   });
   data = saved.document;
@@ -389,14 +435,16 @@ function render() {
     if (blockedFocus) blockedFocus.focus({ preventScroll: true });
     return;
   }
-  const overlay = state.overlay === "conditions" ? conditionsSheet() : state.overlay === "ingredient" ? ingredientSheet() : "";
+  const overlay = state.overlay === "conditions" ? conditionsSheet() : state.overlay === "ingredient" ? ingredientSheet() : state.overlay === "adjustment" ? adjustmentSheet() : "";
   app.innerHTML = (views[state.route] || homeView)() + overlay + resetDialog();
   if (state.overlay || state.confirmReset) {
     const base = app.querySelector(":scope > .screen");
     if (base) { base.inert = true; base.setAttribute("aria-hidden", "true"); }
   }
   const routeChanged = state.previousRoute !== state.route;
-  const focusTarget = state.confirmReset
+  const focusTarget = state.adjustment?.confirmDelete
+    ? app.querySelector(".inventory-confirm [tabindex='-1']")
+    : state.confirmReset
     ? app.querySelector(".confirm-dialog [tabindex='-1']")
     : state.pendingFocus
       ? app.querySelector(`[data-focus-key="${state.pendingFocus}"]`)
@@ -433,16 +481,18 @@ document.addEventListener("click", (event) => {
   if (overlay) {
     state.returnFocus = event.target.closest("[data-focus-key]")?.dataset.focusKey || null;
     if (overlay === "ingredient") openIngredient();
-    else { state.overlay = overlay; state.conditionsDraft = structuredClone(data.conditions); state.dirty = false; render(); }
+    else { state.overlay = overlay; state.conditionsDraft = structuredClone(data.conditions); state.conditionError = ""; state.dirty = false; render(); }
     return;
   }
   const editIngredient = event.target.closest("[data-edit-ingredient]")?.dataset.editIngredient;
   if (editIngredient) { openIngredient(editIngredient); return; }
+  const adjustIngredient = event.target.closest("[data-adjust-ingredient]")?.dataset.adjustIngredient;
+  if (adjustIngredient) { openAdjustment(adjustIngredient); return; }
   const condition = event.target.closest("[data-condition]");
   if (condition) {
     const key = condition.dataset.condition;
     const raw = condition.dataset.value;
-    state.conditionsDraft[key] = key === "diners" ? Number(raw) : raw;
+    state.conditionsDraft[key] = raw;
     state.dirty = true;
     render();
     return;
@@ -465,6 +515,9 @@ document.addEventListener("click", (event) => {
   if (actionName === "reroll-cuisine") beginCuisineRecommendation(Math.random, true);
   if (actionName === "confirm-cuisine") { state.eatOut.confirmed = true; render(); announce(`今天就吃${state.eatOut.recommendation.name}`); }
   if (actionName === "close-sheet") closeSheet();
+  if (actionName === "request-delete-batch") { state.adjustment.confirmDelete = true; render(); }
+  if (actionName === "cancel-delete-batch") { state.adjustment.confirmDelete = false; render(); }
+  if (actionName === "confirm-delete-batch") saveInventoryAdjustment("delete");
   if (actionName === "shell-notice") announce("库存编辑将在下一步接入本地数据");
   if (actionName === "reset-data") { state.confirmReset = "normal"; render(); }
   if (actionName === "request-blocked-reset") { state.confirmReset = "blocked"; render(); }
@@ -511,10 +564,17 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-adjust-batch]") && state.adjustment) {
+    state.adjustment.batchId = event.target.value;
+    state.adjustment.amount = "";
+    state.adjustment.error = "";
+    render();
+    return;
+  }
   const conditionInput = event.target.closest("[data-condition-input]");
   if (conditionInput) {
     const key = conditionInput.dataset.conditionInput;
-    state.conditionsDraft[key] = ["maxMinutes", "topUpBudget"].includes(key) ? Number(conditionInput.value) : conditionInput.value;
+    state.conditionsDraft[key] = ["diners", "calorieLimit", "maxMinutes", "topUpBudget"].includes(key) ? Number(conditionInput.value) : conditionInput.value;
     state.dirty = true;
   }
   if (event.target.closest("#ingredient-form")) {
@@ -529,6 +589,10 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  if (event.target.dataset.conditionInput === "diners" && state.conditionsDraft) {
+    state.conditionsDraft.diners = Number(event.target.value);
+    state.dirty = true;
+  }
   if (event.target.closest("#ingredient-form")) {
     state.dirty = true;
     if (event.target.name) state.ingredientForm[event.target.name] = event.target.value;
@@ -545,11 +609,18 @@ document.addEventListener("submit", (event) => {
   if (!formName) return;
   event.preventDefault();
   if (formName === "conditions") {
+    const diners = Number(state.conditionsDraft.diners);
+    if (!Number.isInteger(diners) || diners < 1 || diners > 6) { state.conditionError = "请输入 1 到 6 之间的整数人数。"; render(); return; }
     const saved = store.update((draft) => { draft.conditions = structuredClone(state.conditionsDraft); });
     data = saved.document;
     state.dirty = false;
     state.conditionsDraft = null;
     beginRecommendation();
+    return;
+  }
+  if (formName === "inventory-adjustment") {
+    state.adjustment.amount = String(new FormData(event.target).get("amount") || "");
+    saveInventoryAdjustment("deduct", state.adjustment.amount);
     return;
   }
   if (formName === "ingredient") {
@@ -596,10 +667,11 @@ document.addEventListener("submit", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  const modal = app.querySelector(".confirm-dialog") || app.querySelector(".sheet");
+  const modal = app.querySelector(".inventory-confirm") || app.querySelector(".confirm-dialog") || app.querySelector(".sheet");
   if (!modal) return;
   if (event.key === "Escape") {
-    if (state.confirmReset) { state.confirmReset = null; render(); }
+    if (state.adjustment?.confirmDelete) { state.adjustment.confirmDelete = false; render(); }
+    else if (state.confirmReset) { state.confirmReset = null; render(); }
     else closeSheet();
     return;
   }
