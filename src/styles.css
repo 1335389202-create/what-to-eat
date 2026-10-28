@@ -164,6 +164,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .food-b { width: 42px; height: 30px; right: 34px; top: 28px; background: #638461; }
 .food-c { width: 27px; height: 25px; right: 83px; top: 42px; background: #f7f0ce; }
 .result-card { position: relative; overflow: hidden; padding-top: 32px; background: linear-gradient(150deg, #fff5d7, #fffaf0 58%); animation: reveal 460ms cubic-bezier(.2,.8,.2,1) both; }
+.meal-menu { min-width: 0; margin-top: 4px; }
+.meal-menu h3 { margin: 0 0 10px; font-size: 17px; }
+.meal-dish-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.meal-dish { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: rgb(255 255 255 / 76%); }
+.meal-dish-copy { min-width: 0; display: grid; gap: 4px; }
+.meal-dish-copy strong { overflow-wrap: anywhere; }
+.meal-kind { color: var(--accent); font-size: 12px; font-weight: 800; }
+.meal-dish .list-action { flex: 0 0 auto; }
+.meal-dish > small { max-width: 96px; text-align: right; }
 .eat-out-filters { margin-top: 24px; }
 .eat-out-filters .field-label { display: block; margin-bottom: 7px; }
 .eat-out-segmented { grid-auto-flow: row; grid-template-columns: repeat(4, 1fr); }
@@ -216,6 +225,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   .cuisine-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 359px) {
+  .meal-dish { align-items: start; flex-direction: column; }
+  .meal-dish > small { max-width: none; text-align: left; }
   .scene-actions { grid-template-columns: 1fr; }
   .eat-out-segmented { grid-template-columns: repeat(2, 1fr); }
   .screen-body { padding-inline: 14px; }

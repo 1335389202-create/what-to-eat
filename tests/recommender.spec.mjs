@@ -1,6 +1,6 @@
 import { createDefaultDocument } from "../src/storage.js";
 import { recipes, findRecipe } from "../src/data/recipes.js";
-import { evaluateRecipe, getCandidateWeight, getCandidates, getMealCandidates, matchIngredient, pickRecommendation } from "../src/recommender.js";
+import { evaluateRecipe, getCandidateWeight, getCandidates, getMealCandidates, getMealReplacements, mealCategory, matchIngredient, pickRecommendation } from "../src/recommender.js";
 
 const results = [];
 function check(name, condition, detail = "") {
@@ -114,5 +114,20 @@ check("健康餐约束整顿每人热量", healthyMeals.length > 0 && healthyMea
 check("同名食材跨菜品合并需求", healthyMeals.every((candidate) => new Set(candidate.ingredients.map((item) => `${item.id}:${item.unit}`)).size === candidate.ingredients.length));
 healthy.conditions.calorieLimit = 450;
 check("热量上限无法满足时不伪造结果", getMealCandidates(recipes, healthy, today).length === 0);
+
+const replaceDoc = createDefaultDocument(new Date(2026, 7, 26, 12));
+replaceDoc.conditions = { ...replaceDoc.conditions, diners: 3, stockMode: "topup", topUpBudget: 200, calorieLimit: 650 };
+const replaceDishes = ["light-tomato-egg-rice", "garlic-greens-side", "chicken-side"].map(findRecipe);
+for (const index of [0, 1, 2]) {
+  const replacements = getMealReplacements(recipes, replaceDoc, replaceDishes, index, today);
+  check(`第 ${index + 1} 道菜有同类备选`, replacements.length > 0);
+  check(`第 ${index + 1} 道菜只在原类别内替换`, replacements.every((candidate) => candidate.dishes.length === 3 && candidate.dishes.filter((dish, position) => dish.id !== replaceDishes[position].id).length === 1 && mealCategory(candidate.dishes[index]) === mealCategory(replaceDishes[index]) && candidate.caloriesPerPerson <= 650));
+}
+check("汤与半荤半素有独立类别", mealCategory(findRecipe("tomato-egg-soup-side")) === "soup" && mealCategory(findRecipe("tomato-egg-side")) === "mixed");
+const varied = createDefaultDocument(new Date(2026, 7, 26, 12));
+varied.conditions = { ...varied.conditions, diners: 4, stockMode: "topup", topUpBudget: 200, calorieLimit: 800 };
+const variedDishes = ["light-tomato-egg-rice", "garlic-greens-side", "chicken-side", "tomato-egg-soup-side", "tomato-egg-side"].map(findRecipe);
+check("汤可换另一道汤", getMealReplacements(recipes, varied, variedDishes, 3, today).some((candidate) => candidate.dishes[3].id === "greens-tofu-soup-side"));
+check("半荤半素可换同类菜", getMealReplacements(recipes, varied, variedDishes, 4, today).some((candidate) => candidate.dishes[4].id === "mushroom-tofu-side"));
 
 console.log(JSON.stringify({ passed: results.length, total: results.length, results }, null, 2));
