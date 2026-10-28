@@ -152,6 +152,29 @@ function hasProtein(recipe) {
   return recipe.ingredients.some((item) => ["chicken", "egg", "tofu", "beef", "pork", "fish"].includes(item.id));
 }
 
+export function mealCategory(recipe) {
+  if (recipe.role === "vegetable") return "vegetable";
+  if (recipe.role === "staple") return "staple";
+  if (recipe.role === "soup") return "soup";
+  if (recipe.role === "mixed") return "mixed";
+  if (recipe.role === "protein") return recipe.diet === "meat" ? "meat" : "mixed";
+  if (recipe.title.includes("汤")) return "soup";
+  if (hasStaple(recipe)) return "staple";
+  if (recipe.diet === "meat" && recipe.ingredients.some((item) => ["greens", "tomato", "potato", "pepper", "cucumber", "mushroom", "lettuce", "onion"].includes(item.id))) return "mixed";
+  if (recipe.diet === "meat") return "meat";
+  return hasProtein(recipe) ? "mixed" : "vegetable";
+}
+
+function mealCompositionAllowed(dishes, conditions) {
+  const [main, ...extras] = dishes;
+  const vegetableBases = extras.filter((dish) => dish.role === "vegetable").map((dish) => dish.ingredients.find((item) => !item.pantry)?.id);
+  return extras.some((dish) => dish.role === "vegetable")
+    && new Set(vegetableBases).size === vegetableBases.length
+    && (hasProtein(main) || extras.some((dish) => dish.role === "protein" || dish.role === "mixed"))
+    && (conditions.diners < 2 || conditions.diet === "vegetarian" || main.diet === "meat" || extras.some((dish) => dish.diet === "meat"))
+    && (hasStaple(main) || extras.some((dish) => dish.role === "staple"));
+}
+
 function mealAllowed(candidate, conditions) {
   return (conditions.stockMode === "topup"
     ? candidate.missingCost <= Number(conditions.topUpBudget || 0)
@@ -183,15 +206,27 @@ export function getMealCandidates(recipes, document, todayKey = localTodayKey())
       const extras = sides.filter((_, index) => mask & (1 << index));
       const dishes = [main, ...extras];
       if (dishes.length < minDishes || dishes.length > maxDishes) continue;
-      if (!extras.some((dish) => dish.role === "vegetable")) continue;
-      if (!hasProtein(main) && !extras.some((dish) => dish.role === "protein")) continue;
-      if (diners >= 2 && c.diet !== "vegetarian" && main.diet === "vegetarian" && !extras.some((dish) => dish.role === "protein" && dish.diet === "meat")) continue;
-      if (!hasStaple(main) && !extras.some((dish) => dish.role === "staple")) continue;
+      if (!mealCompositionAllowed(dishes, c)) continue;
       const candidate = evaluateMeal(dishes, document, todayKey);
       if (mealAllowed(candidate, c)) plans.push(candidate);
     }
   }
   return plans;
+}
+
+export function getMealReplacements(recipes, document, dishes, index, todayKey = localTodayKey()) {
+  if (document.conditions.format !== "regular" || !dishes[index]) return [];
+  const current = dishes[index];
+  const category = mealCategory(current);
+  const c = document.conditions;
+  return recipes.filter((recipe) => (index === 0 ? recipe.formats.includes("regular") && !recipe.role : Boolean(recipe.role)))
+    .filter((recipe) => recipe.id !== current.id && !dishes.some((dish) => dish.id === recipe.id))
+    .filter((recipe) => mealCategory(recipe) === category)
+    .filter((recipe) => index !== 0 || c.cuisine === "any" || recipe.cuisine === c.cuisine)
+    .filter((recipe) => c.diet !== "vegetarian" || recipe.diet === "vegetarian")
+    .filter((recipe) => c.spice === "hot" || recipe.spice !== "hot")
+    .map((recipe) => evaluateMeal(dishes.map((dish, position) => position === index ? recipe : dish), document, todayKey))
+    .filter((candidate) => mealCompositionAllowed(candidate.dishes, c) && mealAllowed(candidate, c));
 }
 
 export function getCandidateWeight(candidate, recentRecipeIds = []) {

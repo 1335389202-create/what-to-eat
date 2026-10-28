@@ -3,7 +3,7 @@
 import { createStore } from "./storage.js";
 import { recipes, findRecipe } from "./data/recipes.js";
 import { cuisines, getCuisineCandidates, pickCuisine } from "./data/cuisines.js";
-import { evaluateMeal, evaluateRecipe, pickRecommendation, statusLabels } from "./recommender.js";
+import { evaluateMeal, evaluateRecipe, getMealReplacements, mealCategory, pickRecommendation, statusLabels } from "./recommender.js";
 import { adjustInventoryBatch, applyDeduction, buildDeduction } from "./deduction.js";
 import { derivePurchaseAge, localTodayKey, parseLocalDateKey, purchaseAgeBonus, purchaseAgeSafetyText, purchaseAgeText } from "./purchase-age.js";
 
@@ -184,7 +184,13 @@ function resultView() {
   const candidate = currentRecommendation();
   if (!candidate) return noResultView();
   const dishes = candidate.dishes || [candidate.recipe];
-  return screen({ title: "推荐结果", back: "home", body: `<article class="hero-card result-card"><div class="reveal-mark" aria-hidden="true">✦</div><span class="status status-${candidate.status}">库存${statusLabels[candidate.status]}</span><p class="eyebrow">盲盒为你选中了</p><h2 tabindex="-1" data-page-heading>${candidate.recipe.title}</h2>${dishes.length > 1 ? `<p class="helper">再搭配：${dishes.slice(1).map((dish) => dish.title).join(" · ")}</p>` : ""}<p class="helper">${candidate.diners} 人 · 约 ${candidate.minutes || candidate.recipe.minutes} 分钟 · 约 ${candidate.caloriesPerPerson || candidate.recipe.calories} kcal / 人（估算）</p>${Number(data.conditions.calorieLimit) ? `<p class="helper">本次热量上限：${data.conditions.calorieLimit} kcal / 人</p>` : ""}${candidate.missingCost > 0 ? `<p class="helper">预计补买约 ¥${candidate.missingCost.toFixed(1)}，不超过本次补买预算。</p>` : ""}<div class="notice"><strong>为什么推荐</strong><div>${candidate.reason}</div></div></article><button class="button link" type="button" data-action="reroll">再来一次</button>`, cta: action("查看菜谱", 'data-route="recipe"', true) });
+  const labels = { meat: "荤菜", vegetable: "素菜", mixed: "半荤半素", soup: "汤", staple: "主食" };
+  const menu = dishes.length > 1 ? `<section class="meal-menu" aria-label="本顿完整菜单"><h3>本顿完整菜单 · ${dishes.length} 道</h3><ol class="meal-dish-list">${dishes.map((dish, index) => {
+    const category = mealCategory(dish);
+    const alternatives = getMealReplacements(recipes, data, dishes, index);
+    return `<li class="meal-dish"><div class="meal-dish-copy"><span class="meal-kind">${labels[category]}</span><strong>${dish.title}</strong></div>${alternatives.length ? `<button class="list-action" type="button" data-replace-dish="${index}" data-focus-key="replace-dish-${index}" aria-label="换一道${labels[category]}，当前是${dish.title}">换一道${labels[category]}</button>` : `<small class="helper">暂无同类备选</small>`}</li>`;
+  }).join("")}</ol></section>` : "";
+  return screen({ title: "推荐结果", back: "home", body: `<article class="hero-card result-card"><div class="reveal-mark" aria-hidden="true">✦</div><span class="status status-${candidate.status}">库存${statusLabels[candidate.status]}</span><p class="eyebrow">盲盒为你选中了</p><h2 tabindex="-1" data-page-heading>${dishes.length > 1 ? "今天这桌菜" : candidate.recipe.title}</h2><p class="helper">${candidate.diners} 人 · 约 ${candidate.minutes || candidate.recipe.minutes} 分钟 · 约 ${candidate.caloriesPerPerson || candidate.recipe.calories} kcal / 人（估算）</p>${Number(data.conditions.calorieLimit) ? `<p class="helper">本次热量上限：${data.conditions.calorieLimit} kcal / 人</p>` : ""}${candidate.missingCost > 0 ? `<p class="helper">预计补买约 ¥${candidate.missingCost.toFixed(1)}，不超过本次补买预算。</p>` : ""}${menu}<div class="notice"><strong>为什么推荐</strong><div>${candidate.reason}</div></div></article><button class="button link" type="button" data-action="reroll">整桌换一组</button>`, cta: action("查看菜谱", 'data-route="recipe"', true) });
 }
 
 function recipeView() {
@@ -192,7 +198,7 @@ function recipeView() {
   if (!candidate) return noResultView();
   const recipe = candidate.recipe;
   const dishes = candidate.dishes || [recipe];
-  return screen({ title: "菜谱", back: "result", body: `<p class="eyebrow">${dishes.length > 1 ? "搭配菜单" : "结构化菜谱"}</p><h2 class="page-title">${recipe.title}</h2>${dishes.length > 1 ? `<p class="helper">搭配 ${dishes.slice(1).map((dish) => dish.title).join(" · ")}</p>` : ""}<div class="cluster"><span class="status">${candidate.diners} 人份</span><span>约 ${candidate.minutes || recipe.minutes} 分钟</span><span>${recipe.difficulty}</span></div><h2 class="section-title">食材与库存</h2>${requirementRows(candidate)}<h2 class="section-title">做法</h2>${dishes.map((dish) => `<section class="dish-steps"><h3>${dish.title}</h3><ol class="step-list">${dish.steps.map((step) => `<li>${step}</li>`).join("")}</ol></section>`).join("")}<div class="metric-grid"><div class="metric"><strong>约 ${(candidate.caloriesPerPerson || recipe.calories) * candidate.diners} kcal</strong><small>整顿热量估算 · 每人约 ${candidate.caloriesPerPerson || recipe.calories} kcal</small></div><div class="metric"><strong>约 ${(candidate.proteinPerPerson || recipe.protein) * candidate.diners} g</strong><small>整顿蛋白质估算</small></div></div><p class="helper">热量按演示菜谱估算，实际会随食材品牌、用油和份量变化。</p>`, cta: action("我做了这顿饭", 'data-action="prepare-deduction"', true) });
+  return screen({ title: "菜谱", back: "result", body: `<p class="eyebrow">${dishes.length > 1 ? "搭配菜单" : "结构化菜谱"}</p><h2 class="page-title">${dishes.length > 1 ? "今天这桌菜" : recipe.title}</h2>${dishes.length > 1 ? `<p class="helper">${dishes.map((dish) => dish.title).join(" · ")}</p>` : ""}<div class="cluster"><span class="status">${candidate.diners} 人份</span><span>约 ${candidate.minutes || recipe.minutes} 分钟</span><span>${recipe.difficulty}</span></div><h2 class="section-title">食材与库存</h2>${requirementRows(candidate)}<h2 class="section-title">做法</h2>${dishes.map((dish) => `<section class="dish-steps"><h3>${dish.title}</h3><ol class="step-list">${dish.steps.map((step) => `<li>${step}</li>`).join("")}</ol></section>`).join("")}<div class="metric-grid"><div class="metric"><strong>约 ${(candidate.caloriesPerPerson || recipe.calories) * candidate.diners} kcal</strong><small>整顿热量估算 · 每人约 ${candidate.caloriesPerPerson || recipe.calories} kcal</small></div><div class="metric"><strong>约 ${(candidate.proteinPerPerson || recipe.protein) * candidate.diners} g</strong><small>整顿蛋白质估算</small></div></div><p class="helper">热量按演示菜谱估算，实际会随食材品牌、用油和份量变化。</p>`, cta: action("我做了这顿饭", 'data-action="prepare-deduction"', true) });
 }
 
 function noResultView() {
@@ -382,6 +388,27 @@ function beginRecommendation(random = Math.random) {
   return true;
 }
 
+function replaceMealDish(index) {
+  const current = currentRecommendation();
+  if (!current?.dishes?.[index]) return false;
+  const alternatives = getMealReplacements(recipes, data, current.dishes, index);
+  if (!alternatives.length) { announce("当前条件下没有可替换的同类菜"); return false; }
+  const next = alternatives[Math.floor(Math.random() * alternatives.length)];
+  const saved = store.update((draft) => {
+    draft.session.lastRecipeId = next.recipe.id;
+    draft.session.lastMealRecipeIds = next.dishes.map((dish) => dish.id);
+    draft.session.pendingDeduction = null;
+  });
+  if (!saved.ok) { announce("替换未能保存，请重试"); return false; }
+  data = saved.document;
+  state.recommendation = next;
+  state.pendingDeduction = null;
+  state.pendingFocus = `replace-dish-${index}`;
+  render();
+  announce(`已换为${next.dishes[index].title}`);
+  return true;
+}
+
 function prepareDeduction() {
   const candidate = currentRecommendation();
   if (!candidate) { navigate("no-result"); return false; }
@@ -510,6 +537,8 @@ document.addEventListener("click", (event) => {
     render();
     return;
   }
+  const replacement = event.target.closest("[data-replace-dish]");
+  if (replacement) { replaceMealDish(Number(replacement.dataset.replaceDish)); return; }
   const actionName = event.target.closest("[data-action]")?.dataset.action;
   if (actionName === "draw-cuisine") beginCuisineRecommendation();
   if (actionName === "reroll-cuisine") beginCuisineRecommendation(Math.random, true);

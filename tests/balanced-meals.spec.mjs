@@ -49,9 +49,27 @@ try {
   check("自填 4 人与健康餐条件持久化", menu.conditions.diners === 4 && menu.conditions.calorieLimit === 650);
   check("4 人菜单为 4–5 道", menu.ids.length >= 4 && menu.ids.length <= 5, menu.ids.join(","));
   check("结果展示每人热量约束", await page.getByText("本次热量上限：650 kcal / 人").isVisible(), await page.locator("body").innerText());
+  const displayedTitles = await page.locator(".meal-dish strong").allTextContents();
+  const expectedTitles = await page.evaluate(() => { const data = window.__MVP__.getData(); return data.session.lastMealRecipeIds.map((id) => window.__MVP__.recipes.find((recipe) => recipe.id === id).title); });
+  check("结果页同时列出全部菜品", displayedTitles.length === menu.ids.length && displayedTitles.every((title, index) => title === expectedTitles[index]));
+  const replaceButton = page.locator("[data-replace-dish]").first();
+  check("套餐有可用的同类替换", await replaceButton.count() > 0);
+  const replaceIndex = Number(await replaceButton.getAttribute("data-replace-dish"));
+  const categoryBefore = await page.locator(".meal-dish").nth(replaceIndex).locator(".meal-kind").innerText();
+  await replaceButton.click();
+  const replaced = await page.evaluate(() => window.__MVP__.getData().session.lastMealRecipeIds);
+  check("同类替换只改变选中的一道菜", replaced.length === menu.ids.length && replaced.filter((id, index) => id !== menu.ids[index]).length === 1 && replaced[replaceIndex] !== menu.ids[replaceIndex]);
+  check("替换后类别不变", await page.locator(".meal-dish").nth(replaceIndex).locator(".meal-kind").innerText() === categoryBefore);
+  await page.reload({ waitUntil: "load" });
+  check("替换结果刷新后保留", await page.evaluate(() => window.__MVP__.getData().session.lastMealRecipeIds.join(",")) === replaced.join(","));
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    check(`${width}px 完整菜单无横向溢出`, await page.evaluate(() => document.documentElement.scrollWidth - innerWidth <= 1));
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "查看菜谱", exact: true }).click();
   await page.getByRole("heading", { name: "菜谱", exact: true }).waitFor();
-  check("各道菜分别展示做法", await page.locator(".dish-steps").count() === menu.ids.length);
+  check("替换后各道菜分别展示做法", await page.locator(".dish-steps").count() === replaced.length);
   const keys = await page.evaluate(() => { window.__MVP__.prepareDeduction(); return window.__MVP__.getPendingDeduction().items.map((item) => item.key); });
   check("组合菜单不会重复扣同一批次", new Set(keys).size === keys.length, keys.join(","));
 
