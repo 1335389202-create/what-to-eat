@@ -1,4 +1,4 @@
-import { buildDeduction, applyDeduction } from "../src/deduction.js";
+import { adjustInventoryBatch, buildDeduction, applyDeduction } from "../src/deduction.js";
 import { findRecipe } from "../src/data/recipes.js";
 import { evaluateRecipe } from "../src/recommender.js";
 import { createDefaultDocument, createStore, STORAGE_KEY } from "../src/storage.js";
@@ -94,5 +94,18 @@ const persistedBefore = store.snapshot();
 storage.setFailWrites(true);
 const failed = store.update((draft) => applyDeduction(draft, buildDeduction(evaluateRecipe(findRecipe("tomato-egg-rice"), draft, today), draft.inventory, today)));
 check("写入失败回滚且主 payload 不变", failed.ok === false && JSON.parse(storage.read(STORAGE_KEY)).inventory[0].batches[0].quantity === persistedBefore.inventory[0].batches[0].quantity);
+
+const adjusted = adjustInventoryBatch(before, { itemId: "tomato", batchId: "T-02", action: "deduct", amount: 20 });
+check("可不经过制作直接扣减指定批次", adjusted.inventory.find((item) => item.id === "tomato").batches[1].quantity === 200 && before.inventory.find((item) => item.id === "tomato").batches[1].quantity === 220);
+const removed = adjustInventoryBatch(adjusted, { itemId: "tomato", batchId: "T-01", action: "delete" });
+check("删除批次保留其他批次", removed.inventory.find((item) => item.id === "tomato").batches.length === 1 && removed.inventory.find((item) => item.id === "tomato").batches[0].id === "T-02");
+const deletedLast = adjustInventoryBatch(removed, { itemId: "tomato", batchId: "T-02", action: "delete" });
+check("删除最后批次时移除食材", !deletedLast.inventory.some((item) => item.id === "tomato"));
+let rejectedDirect = false;
+try { adjustInventoryBatch(before, { itemId: "tomato", batchId: "T-02", action: "deduct", amount: 999 }); } catch { rejectedDirect = true; }
+check("直接超额扣减保持原库存", rejectedDirect && before.inventory.find((item) => item.id === "tomato").batches[1].quantity === 220);
+let tinyRejected = false;
+try { adjustInventoryBatch(before, { itemId: "tomato", batchId: "T-02", action: "deduct", amount: .001 }); } catch { tinyRejected = true; }
+check("过小扣减量不会被舍入成无变化", tinyRejected);
 
 console.log(JSON.stringify({ passed: results.length, total: results.length, results }, null, 2));

@@ -118,15 +118,91 @@ export function getCandidates(recipes, document, todayKey = localTodayKey()) {
       : candidate.status !== "insufficient");
 }
 
+function combineIngredients(dishes) {
+  const combined = new Map();
+  for (const dish of dishes) for (const ingredient of dish.ingredients) {
+    const key = `${ingredient.id}:${ingredient.unit}`;
+    const existing = combined.get(key);
+    if (existing) existing.amount += ingredient.amount;
+    else combined.set(key, { ...ingredient });
+  }
+  return [...combined.values()];
+}
+
+export function evaluateMeal(dishes, document, todayKey = localTodayKey()) {
+  const primary = dishes[0];
+  const combined = { ...primary, ingredients: combineIngredients(dishes) };
+  const candidate = evaluateRecipe(combined, document, todayKey);
+  return {
+    ...candidate,
+    recipe: primary,
+    dishes,
+    title: dishes.map((dish) => dish.title).join(" + "),
+    caloriesPerPerson: dishes.reduce((sum, dish) => sum + dish.calories, 0),
+    proteinPerPerson: dishes.reduce((sum, dish) => sum + dish.protein, 0),
+    minutes: Math.max(...dishes.map((dish) => dish.minutes)) + 5 * (dishes.length - 1)
+  };
+}
+
+function hasStaple(recipe) {
+  return recipe.ingredients.some((item) => ["rice", "pasta", "bread"].includes(item.id));
+}
+
+function hasProtein(recipe) {
+  return recipe.ingredients.some((item) => ["chicken", "egg", "tofu", "beef", "pork", "fish"].includes(item.id));
+}
+
+function mealAllowed(candidate, conditions) {
+  return (conditions.stockMode === "topup"
+    ? candidate.missingCost <= Number(conditions.topUpBudget || 0)
+    : candidate.status !== "insufficient")
+    && (!Number(conditions.calorieLimit) || candidate.caloriesPerPerson <= Number(conditions.calorieLimit))
+    && candidate.minutes <= Number(conditions.maxMinutes || 45);
+}
+
+export function getMealCandidates(recipes, document, todayKey = localTodayKey()) {
+  const c = document.conditions;
+  if (c.format !== "regular") return getCandidates(recipes, document, todayKey)
+    .filter((candidate) => !Number(c.calorieLimit) || candidate.recipe.calories <= Number(c.calorieLimit))
+    .map((candidate) => ({ ...candidate, dishes: [candidate.recipe], title: candidate.recipe.title,
+      caloriesPerPerson: candidate.recipe.calories, proteinPerPerson: candidate.recipe.protein, minutes: candidate.recipe.minutes }));
+
+  const mains = recipes.filter((recipe) => recipe.formats.includes("regular") && !recipe.role)
+    .filter((recipe) => c.cuisine === "any" || recipe.cuisine === c.cuisine)
+    .filter((recipe) => c.diet !== "vegetarian" || recipe.diet === "vegetarian")
+    .filter((recipe) => c.spice === "hot" || recipe.spice !== "hot");
+  const sides = recipes.filter((recipe) => recipe.role &&
+    (c.spice === "hot" || recipe.spice !== "hot") &&
+    (c.diet !== "vegetarian" || recipe.diet === "vegetarian"));
+  const diners = Number(c.diners);
+  const minDishes = Math.max(2, diners);
+  const maxDishes = diners + 1;
+  const plans = [];
+  for (const main of mains) {
+    for (let mask = 1; mask < 2 ** sides.length; mask += 1) {
+      const extras = sides.filter((_, index) => mask & (1 << index));
+      const dishes = [main, ...extras];
+      if (dishes.length < minDishes || dishes.length > maxDishes) continue;
+      if (!extras.some((dish) => dish.role === "vegetable")) continue;
+      if (!hasProtein(main) && !extras.some((dish) => dish.role === "protein")) continue;
+      if (diners >= 2 && c.diet !== "vegetarian" && main.diet === "vegetarian" && !extras.some((dish) => dish.role === "protein" && dish.diet === "meat")) continue;
+      if (!hasStaple(main) && !extras.some((dish) => dish.role === "staple")) continue;
+      const candidate = evaluateMeal(dishes, document, todayKey);
+      if (mealAllowed(candidate, c)) plans.push(candidate);
+    }
+  }
+  return plans;
+}
+
 export function getCandidateWeight(candidate, recentRecipeIds = []) {
   const repeatPenalty = recentRecipeIds.includes(candidate.recipe.id) ? .25 : 1;
   return Math.max(.1, (STATUS_WEIGHT[candidate.status] + candidate.purchaseAgeBonus) * repeatPenalty);
 }
 
 export function pickRecommendation(recipes, document, random = Math.random, todayKey = localTodayKey()) {
-  const candidates = getCandidates(recipes, document, todayKey);
+  const candidates = getMealCandidates(recipes, document, todayKey);
   if (!candidates.length) {
-    return { candidate: null, candidates, message: "当前条件下没有合适结果。可以放宽菜系或时间，允许少量补买，或先补充库存数量。" };
+    return { candidate: null, candidates, message: "当前人数、库存或热量上限下没有合适菜单。可以放宽时间或热量上限、允许补买，或先补充库存数量。" };
   }
   const recent = document.session?.recentRecipeIds || [];
   const weights = candidates.map((candidate) => getCandidateWeight(candidate, recent));

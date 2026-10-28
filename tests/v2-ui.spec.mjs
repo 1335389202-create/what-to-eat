@@ -119,7 +119,8 @@ try {
   await page.getByRole("button", { name: "查看菜谱", exact: true }).click();
   await page.getByRole("button", { name: "我做了这顿饭", exact: true }).click();
   const tomatoRows = page.locator(".deduction-row").filter({ hasText: "西红柿" });
-  check("扣减按较早购买批次排序并解释", await tomatoRows.first().getByText(/T-01/).isVisible() && await tomatoRows.first().getByText(/已购买 6 天/).isVisible());
+  const firstTomatoRow = await tomatoRows.first().innerText();
+  check("扣减按较早购买批次排序并解释", firstTomatoRow.includes("T-01") && firstTomatoRow.includes("已购买 6 天"), firstTomatoRow);
   check("购买时长状态具有文字与非颜色符号", await page.locator(".purchase-age-prioritize").first().evaluate((element) => getComputedStyle(element, "::before").content.includes("↑")));
   check("V2.0 UI 全程无控制台错误", errors.length === 0, errors.join(" | "));
   console.log(JSON.stringify({ passed: results.length, total: results.length, results }, null, 2));

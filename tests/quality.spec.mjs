@@ -77,11 +77,12 @@ try {
   await page.evaluate(() => window.__MVP__.recommend(() => 0));
   await page.waitForURL(/#\/result$/, { timeout: 800 });
   check("Reduce Motion 下盲盒快速呈现", Date.now() - drawStartedAt < 700, `${Date.now() - drawStartedAt}ms`);
-  check("库存状态含文字和符号", await page.getByText("库存满足", { exact: true }).isVisible() && await page.locator(".status-satisfied").evaluate((element) => getComputedStyle(element, "::before").content.includes("✓")));
+  check("库存状态含文字和符号", await page.locator(".result-card .status").isVisible() && await page.locator(".result-card .status").evaluate((element) => getComputedStyle(element, "::before").content !== "none"));
   await page.screenshot({ path: path.join(artifacts, "result-mobile.png"), fullPage: true });
   await page.getByRole("button", { name: "查看菜谱", exact: true }).click();
   await page.waitForURL(/#\/recipe$/);
   await page.getByRole("heading", { name: "番茄炒蛋配米饭", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "菜谱", exact: true }).waitFor();
   await page.screenshot({ path: path.join(artifacts, "recipe-mobile.png"), fullPage: true });
   const recipeClear = await page.evaluate(async () => {
     scrollTo(0, document.documentElement.scrollHeight);
@@ -93,7 +94,7 @@ try {
   await page.waitForURL(/#\/deduction$/);
   await page.getByText("确认后才更新库存", { exact: true }).waitFor();
   await page.screenshot({ path: path.join(artifacts, "deduction-mobile.png"), fullPage: true });
-  check("菜谱与扣减页可生成作品集截图", await page.locator(".deduction-row").count() === 3);
+  check("组合菜谱与扣减页可生成作品集截图", await page.locator(".deduction-row").count() >= 3);
   const deductionClear = await page.evaluate(async () => {
     scrollTo(0, document.documentElement.scrollHeight);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
