@@ -157,12 +157,13 @@ export function mealCategory(recipe) {
   if (recipe.role === "staple") return "staple";
   if (recipe.role === "soup") return "soup";
   if (recipe.role === "mixed") return "mixed";
-  if (recipe.role === "protein") return recipe.diet === "meat" ? "meat" : "mixed";
+  if (recipe.role === "egg-tofu") return "egg-tofu";
+  if (recipe.role === "protein") return recipe.diet === "meat" ? "meat" : "egg-tofu";
   if (recipe.title.includes("汤")) return "soup";
   if (hasStaple(recipe)) return "staple";
   if (recipe.diet === "meat" && recipe.ingredients.some((item) => ["greens", "tomato", "potato", "pepper", "cucumber", "mushroom", "lettuce", "onion"].includes(item.id))) return "mixed";
   if (recipe.diet === "meat") return "meat";
-  return hasProtein(recipe) ? "mixed" : "vegetable";
+  return hasProtein(recipe) ? "egg-tofu" : "vegetable";
 }
 
 function mealCompositionAllowed(dishes, conditions) {
@@ -170,7 +171,7 @@ function mealCompositionAllowed(dishes, conditions) {
   const vegetableBases = extras.filter((dish) => dish.role === "vegetable").map((dish) => dish.ingredients.find((item) => !item.pantry)?.id);
   return extras.some((dish) => dish.role === "vegetable")
     && new Set(vegetableBases).size === vegetableBases.length
-    && (hasProtein(main) || extras.some((dish) => dish.role === "protein" || dish.role === "mixed"))
+    && (hasProtein(main) || extras.some((dish) => ["protein", "mixed", "egg-tofu"].includes(dish.role)))
     && (conditions.diners < 2 || conditions.diet === "vegetarian" || main.diet === "meat" || extras.some((dish) => dish.diet === "meat"))
     && (hasStaple(main) || extras.some((dish) => dish.role === "staple"));
 }
