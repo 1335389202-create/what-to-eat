@@ -184,7 +184,7 @@ function resultView() {
   const candidate = currentRecommendation();
   if (!candidate) return noResultView();
   const dishes = candidate.dishes || [candidate.recipe];
-  const labels = { meat: "荤菜", vegetable: "素菜", mixed: "半荤半素", soup: "汤", staple: "主食" };
+  const labels = { meat: "荤菜", vegetable: "素菜", mixed: "半荤半素", "egg-tofu": "蛋豆菜", soup: "汤", staple: "主食" };
   const menu = dishes.length > 1 ? `<section class="meal-menu" aria-label="本顿完整菜单"><h3>本顿完整菜单 · ${dishes.length} 道</h3><ol class="meal-dish-list">${dishes.map((dish, index) => {
     const category = mealCategory(dish);
     const alternatives = getMealReplacements(recipes, data, dishes, index);
