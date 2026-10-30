@@ -167,14 +167,14 @@ export function mealCategory(recipe) {
   return hasProtein(recipe) ? "egg-tofu" : "vegetable";
 }
 
-function mealCompositionAllowed(dishes, conditions) {
+export function mealCompositionAllowed(dishes, conditions) {
   const [main, ...extras] = dishes;
   const vegetableBases = extras.filter((dish) => dish.role === "vegetable").map((dish) => dish.ingredients.find((item) => !item.pantry)?.id);
   return extras.some((dish) => dish.role === "vegetable")
     && new Set(vegetableBases).size === vegetableBases.length
     && (hasProtein(main) || extras.some((dish) => ["protein", "mixed", "egg-tofu"].includes(dish.role)))
     && (conditions.diners < 2 || conditions.diet === "vegetarian" || main.diet === "meat" || extras.some((dish) => dish.diet === "meat"))
-    && (hasStaple(main) || extras.some((dish) => dish.role === "staple"));
+    && dishes.filter(hasStaple).length === 1;
 }
 
 function mealAllowed(candidate, conditions) {
