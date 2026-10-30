@@ -122,7 +122,8 @@ function currentRecommendation() {
 }
 
 function requirementRows(candidate) {
-  return `<ul class="list">${candidate.ingredients.filter((ingredient) => !ingredient.pantry).map((ingredient) => `<li class="list-row"><div><strong>${ingredient.name}</strong><small>需要 ${ingredient.required} ${ingredient.unit}</small></div><span class="status status-${ingredient.status}">${statusLabels[ingredient.status]}</span></li>`).join("")}</ul>`;
+  const shopping = data.conditions.stockMode === "shop";
+  return `<ul class="list">${candidate.ingredients.filter((ingredient) => !ingredient.pantry).map((ingredient) => `<li class="list-row"><div><strong>${ingredient.name}</strong><small>${shopping ? "采购" : "需要"} ${ingredient.required} ${ingredient.unit}</small></div>${shopping ? "" : `<span class="status status-${ingredient.status}">${statusLabels[ingredient.status]}</span>`}</li>`).join("")}</ul>`;
 }
 
 function homeView() {
@@ -177,7 +178,7 @@ function eatOutResultView() {
 
 function drawView() {
   const conditions = data.conditions;
-  return `<section class="draw-stage"><div><p class="eyebrow">${conditions.meal === "lunch" ? "午餐" : "晚餐"} · ${conditions.diners} 人 · ${conditions.stockMode === "strict" ? "尽量用库存" : "允许少量补买"}</p><h1 tabindex="-1" data-page-heading>正在挑一顿合适的</h1></div><div class="card-stack" aria-hidden="true"><div class="draw-card"></div><div class="draw-card"></div><div class="draw-card"><strong>今日菜单</strong></div></div><div class="stack"><button class="button primary full" type="button" data-route="result">跳过并看结果</button><button class="button full" type="button" data-overlay="conditions">返回条件</button></div></section>`;
+  return `<section class="draw-stage"><div><p class="eyebrow">${conditions.meal === "lunch" ? "午餐" : "晚餐"} · ${conditions.diners} 人 · ${{ strict: "尽量用库存", topup: "允许少量补买", shop: "按菜谱买菜" }[conditions.stockMode]}</p><h1 tabindex="-1" data-page-heading>正在挑一顿合适的</h1></div><div class="card-stack" aria-hidden="true"><div class="draw-card"></div><div class="draw-card"></div><div class="draw-card"><strong>今日菜单</strong></div></div><div class="stack"><button class="button primary full" type="button" data-route="result">跳过并看结果</button><button class="button full" type="button" data-overlay="conditions">返回条件</button></div></section>`;
 }
 
 function resultView() {
@@ -190,7 +191,8 @@ function resultView() {
     const alternatives = getMealReplacements(recipes, data, dishes, index);
     return `<li class="meal-dish"><div class="meal-dish-copy"><span class="meal-kind">${labels[category]}</span><strong>${dish.title}</strong></div>${alternatives.length ? `<button class="list-action" type="button" data-replace-dish="${index}" data-focus-key="replace-dish-${index}" aria-label="换一道${labels[category]}，当前是${dish.title}">换一道${labels[category]}</button>` : `<small class="helper">暂无同类备选</small>`}</li>`;
   }).join("")}</ol></section>` : "";
-  return screen({ title: "推荐结果", back: "home", body: `<article class="hero-card result-card"><div class="reveal-mark" aria-hidden="true">✦</div><span class="status status-${candidate.status}">库存${statusLabels[candidate.status]}</span><p class="eyebrow">盲盒为你选中了</p><h2 tabindex="-1" data-page-heading>${dishes.length > 1 ? "今天这桌菜" : candidate.recipe.title}</h2><p class="helper">${candidate.diners} 人 · 约 ${candidate.minutes || candidate.recipe.minutes} 分钟 · 约 ${candidate.caloriesPerPerson || candidate.recipe.calories} kcal / 人（估算）</p>${Number(data.conditions.calorieLimit) ? `<p class="helper">本次热量上限：${data.conditions.calorieLimit} kcal / 人</p>` : ""}${candidate.missingCost > 0 ? `<p class="helper">预计补买约 ¥${candidate.missingCost.toFixed(1)}，不超过本次补买预算。</p>` : ""}${menu}<div class="notice"><strong>为什么推荐</strong><div>${candidate.reason}</div></div></article><button class="button link" type="button" data-action="reroll">整桌换一组</button>`, cta: action("查看菜谱", 'data-route="recipe"', true) });
+  const shopping = data.conditions.stockMode === "shop";
+  return screen({ title: "推荐结果", back: "home", body: `<article class="hero-card result-card"><div class="reveal-mark" aria-hidden="true">✦</div>${shopping ? '<span class="status">按菜谱买菜</span>' : `<span class="status status-${candidate.status}">库存${statusLabels[candidate.status]}</span>`}<p class="eyebrow">盲盒为你选中了</p><h2 tabindex="-1" data-page-heading>${dishes.length > 1 ? "今天这桌菜" : candidate.recipe.title}</h2><p class="helper">${candidate.diners} 人 · 约 ${candidate.minutes || candidate.recipe.minutes} 分钟 · 约 ${candidate.caloriesPerPerson || candidate.recipe.calories} kcal / 人（估算）</p>${Number(data.conditions.calorieLimit) ? `<p class="helper">本次热量上限：${data.conditions.calorieLimit} kcal / 人</p>` : ""}${!shopping && candidate.missingCost > 0 ? `<p class="helper">预计补买约 ¥${candidate.missingCost.toFixed(1)}，不超过本次补买预算。</p>` : ""}${menu}<div class="notice"><strong>为什么推荐</strong><div>${candidate.reason}</div></div></article><button class="button link" type="button" data-action="reroll">整桌换一组</button>`, cta: action(shopping ? "查看菜谱与采购清单" : "查看菜谱", 'data-route="recipe"', true) });
 }
 
 function recipeView() {
@@ -198,7 +200,7 @@ function recipeView() {
   if (!candidate) return noResultView();
   const recipe = candidate.recipe;
   const dishes = candidate.dishes || [recipe];
-  return screen({ title: "菜谱", back: "result", body: `<p class="eyebrow">${dishes.length > 1 ? "搭配菜单" : "结构化菜谱"}</p><h2 class="page-title">${dishes.length > 1 ? "今天这桌菜" : recipe.title}</h2>${dishes.length > 1 ? `<p class="helper">${dishes.map((dish) => dish.title).join(" · ")}</p>` : ""}<div class="cluster"><span class="status">${candidate.diners} 人份</span><span>约 ${candidate.minutes || recipe.minutes} 分钟</span><span>${recipe.difficulty}</span></div><h2 class="section-title">食材与库存</h2>${requirementRows(candidate)}<h2 class="section-title">做法</h2>${dishes.map((dish) => `<section class="dish-steps"><h3>${dish.title}</h3><ol class="step-list">${dish.steps.map((step) => `<li>${step}</li>`).join("")}</ol></section>`).join("")}<div class="metric-grid"><div class="metric"><strong>约 ${(candidate.caloriesPerPerson || recipe.calories) * candidate.diners} kcal</strong><small>整顿热量估算 · 每人约 ${candidate.caloriesPerPerson || recipe.calories} kcal</small></div><div class="metric"><strong>约 ${(candidate.proteinPerPerson || recipe.protein) * candidate.diners} g</strong><small>整顿蛋白质估算</small></div></div><p class="helper">热量按演示菜谱估算，实际会随食材品牌、用油和份量变化。</p>`, cta: action("我做了这顿饭", 'data-action="prepare-deduction"', true) });
+  return screen({ title: "菜谱", back: "result", body: `<p class="eyebrow">${dishes.length > 1 ? "搭配菜单" : "结构化菜谱"}</p><h2 class="page-title">${dishes.length > 1 ? "今天这桌菜" : recipe.title}</h2>${dishes.length > 1 ? `<p class="helper">${dishes.map((dish) => dish.title).join(" · ")}</p>` : ""}<div class="cluster"><span class="status">${candidate.diners} 人份</span><span>约 ${candidate.minutes || recipe.minutes} 分钟</span><span>${recipe.difficulty}</span></div><h2 class="section-title">${data.conditions.stockMode === "shop" ? "采购清单" : "食材与库存"}</h2>${requirementRows(candidate)}${data.conditions.stockMode === "shop" ? `<p class="helper">调味品按菜谱步骤自行准备；这次不会扣减原有库存。</p>` : ""}<h2 class="section-title">做法</h2>${dishes.map((dish) => `<section class="dish-steps"><h3>${dish.title}</h3><ol class="step-list">${dish.steps.map((step) => `<li>${step}</li>`).join("")}</ol></section>`).join("")}<div class="metric-grid"><div class="metric"><strong>约 ${(candidate.caloriesPerPerson || recipe.calories) * candidate.diners} kcal</strong><small>整顿热量估算 · 每人约 ${candidate.caloriesPerPerson || recipe.calories} kcal</small></div><div class="metric"><strong>约 ${(candidate.proteinPerPerson || recipe.protein) * candidate.diners} g</strong><small>整顿蛋白质估算</small></div></div><p class="helper">热量按演示菜谱估算，实际会随食材品牌、用油和份量变化。</p>`, cta: action("我做了这顿饭", 'data-action="prepare-deduction"', true) });
 }
 
 function noResultView() {
@@ -218,6 +220,7 @@ function deductionView() {
 
 function successView() {
   const summary = data.session.lastDeductionSummary || [];
+  if (data.conditions.stockMode === "shop") return screen({ title: "制作完成", body: `<div class="hero-card success-card"><p class="eyebrow">按菜谱买菜</p><h2 tabindex="-1" data-page-heading>这一顿，完成了。</h2><p>这次没有使用或扣减原有库存。</p></div>`, cta: action("回到今天", 'data-route="home"', true) });
   return screen({ title: "制作完成", body: `<div class="hero-card success-card"><p class="eyebrow">库存已更新</p><h2 tabindex="-1" data-page-heading>这一顿，完成了。</h2><p>${data.session.lastCompletedRecipeTitle || "本次菜谱"}的库存扣减已一次完成。</p></div>${summary.length ? `<h2 class="section-title">本次更新</h2><ul class="list">${summary.map((item) => `<li class="list-row"><div><strong>${item.name}</strong><small>已扣减 ${item.amount} ${item.unit}</small></div></li>`).join("")}</ul>` : ""}`, cta: action("回到今天", 'data-route="home"', true) });
 }
 
@@ -233,7 +236,7 @@ function conditionsSheet() {
     <div><span class="field-label">餐次</span><div class="segmented">${optionButton("meal", "lunch", "午餐")}${optionButton("meal", "dinner", "晚餐")}</div></div>
     <div><span class="field-label">结果形式</span><div class="segmented">${optionButton("format", "simple", "简餐")}${optionButton("format", "regular", "正常正餐")}${optionButton("format", "single", "一道菜")}</div></div>
     <div class="field"><label for="condition-calories">健康餐 · 每人热量上限</label><select id="condition-calories" data-condition-input="calorieLimit"><option value="0" ${!Number(conditions.calorieLimit) ? "selected" : ""}>不限制</option><option value="450" ${Number(conditions.calorieLimit) === 450 ? "selected" : ""}>约 450 kcal</option><option value="550" ${Number(conditions.calorieLimit) === 550 ? "selected" : ""}>约 550 kcal</option><option value="650" ${Number(conditions.calorieLimit) === 650 ? "selected" : ""}>约 650 kcal</option><option value="800" ${Number(conditions.calorieLimit) === 800 ? "selected" : ""}>约 800 kcal</option></select><p class="helper">按演示菜谱估算筛选整顿饭；实际热量会随食材和做法变化。</p></div>
-    <div><span class="field-label">库存模式</span><div class="segmented">${optionButton("stockMode", "strict", "尽量只用库存")}${optionButton("stockMode", "topup", "允许少量补买")}</div></div>
+    <div><span class="field-label">食材来源</span><div class="segmented">${optionButton("stockMode", "strict", "尽量只用库存")}${optionButton("stockMode", "topup", "允许少量补买")}${optionButton("stockMode", "shop", "按菜谱买菜")}</div><p class="helper">按菜谱买菜不参考现有库存，适合想换口味或周末采购。</p></div>
     <details><summary>更多条件</summary><div class="stack">
       <div class="field"><label for="condition-cuisine">菜系</label><select id="condition-cuisine" data-condition-input="cuisine"><option value="any" ${conditions.cuisine === "any" ? "selected" : ""}>不限</option><option value="chinese" ${conditions.cuisine === "chinese" ? "selected" : ""}>中式家常</option><option value="western" ${conditions.cuisine === "western" ? "selected" : ""}>西式简餐</option></select></div>
       <div class="field"><label for="condition-diet">荤素</label><select id="condition-diet" data-condition-input="diet"><option value="any" ${conditions.diet === "any" ? "selected" : ""}>不限</option><option value="vegetarian" ${conditions.diet === "vegetarian" ? "selected" : ""}>素食</option><option value="meat" ${conditions.diet === "meat" ? "selected" : ""}>可含肉类</option></select></div>
@@ -366,8 +369,8 @@ function beginCuisineRecommendation(random = Math.random, excludeCurrent = false
   return true;
 }
 
-function beginRecommendation(random = Math.random) {
-  const picked = pickRecommendation(recipes, data, random);
+function beginRecommendation(random = Math.random, excludeCurrent = false) {
+  const picked = pickRecommendation(recipes, data, random, localTodayKey(), excludeCurrent ? state.recommendation?.recipe.id : null);
   if (!picked.candidate) {
     state.recommendation = null;
     state.noResultMessage = picked.message;
@@ -412,6 +415,19 @@ function replaceMealDish(index) {
 function prepareDeduction() {
   const candidate = currentRecommendation();
   if (!candidate) { navigate("no-result"); return false; }
+  if (data.conditions.stockMode === "shop") {
+    const saved = store.update((draft) => {
+      draft.session.pendingDeduction = null;
+      draft.session.lastCompletedAt = new Date().toISOString();
+      draft.session.lastCompletedRecipeTitle = candidate.title;
+      draft.session.lastDeductionSummary = [];
+    });
+    if (!saved.ok) { announce("完成记录保存失败，请重试"); return false; }
+    data = saved.document;
+    state.pendingDeduction = null;
+    navigate("success");
+    return true;
+  }
   state.pendingDeduction = buildDeduction(candidate, data.inventory, localTodayKey());
   const saved = store.update((draft) => { draft.session.pendingDeduction = structuredClone(state.pendingDeduction); });
   if (!saved.ok) {
@@ -581,7 +597,7 @@ document.addEventListener("click", (event) => {
   }
   if (actionName === "discard-changes") closeSheet(true);
   if (actionName === "keep-editing") { state.confirmDiscard = false; render(); }
-  if (actionName === "reroll") beginRecommendation();
+  if (actionName === "reroll") beginRecommendation(Math.random, true);
   if (actionName === "prepare-deduction") prepareDeduction();
   if (actionName === "commit-deduction") commitDeduction();
   if (actionName === "toggle-motion") {

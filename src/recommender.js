@@ -88,7 +88,8 @@ function recommendationReason(priority, overall) {
 
 export function evaluateRecipe(recipe, document, todayKey = localTodayKey()) {
   const diners = Number(document.conditions.diners || 1);
-  const ingredients = recipe.ingredients.map((ingredient) => matchIngredient(ingredient, document.inventory, document.pantry, diners));
+  const shopping = document.conditions.stockMode === "shop";
+  const ingredients = recipe.ingredients.map((ingredient) => matchIngredient(ingredient, shopping ? [] : document.inventory, shopping ? [] : document.pantry, diners));
   const overall = ingredients.reduce((worst, ingredient) => STATUS_RANK[ingredient.status] > STATUS_RANK[worst] ? ingredient.status : worst, "satisfied");
   const missingCost = ingredients.reduce((sum, ingredient) => sum + (ingredient.status === "insufficient" ? ingredient.missing * Number(ingredient.pricePerUnit || 0) : 0), 0);
   const purchasePriority = selectPurchasePriority(ingredients, todayKey);
@@ -99,8 +100,8 @@ export function evaluateRecipe(recipe, document, todayKey = localTodayKey()) {
     status: overall,
     missingCost: Math.round(missingCost * 10) / 10,
     purchasePriority,
-    purchaseAgeBonus: purchasePriority?.bonus || 0,
-    reason: recommendationReason(purchasePriority, overall)
+    purchaseAgeBonus: shopping ? 0 : purchasePriority?.bonus || 0,
+    reason: shopping ? "按菜谱和用餐条件挑选，不使用现有库存；请按采购清单备齐食材。" : recommendationReason(purchasePriority, overall)
   };
 }
 
@@ -113,7 +114,7 @@ export function getCandidates(recipes, document, todayKey = localTodayKey()) {
     .filter((recipe) => recipe.minutes <= Number(c.maxMinutes || 45))
     .filter((recipe) => recipe.formats.includes(c.format))
     .map((recipe) => evaluateRecipe(recipe, document, todayKey))
-    .filter((candidate) => c.stockMode === "topup"
+    .filter((candidate) => c.stockMode === "shop" ? true : c.stockMode === "topup"
       ? candidate.missingCost <= Number(c.topUpBudget || 0)
       : candidate.status !== "insufficient");
 }
@@ -177,7 +178,7 @@ function mealCompositionAllowed(dishes, conditions) {
 }
 
 function mealAllowed(candidate, conditions) {
-  return (conditions.stockMode === "topup"
+  return (conditions.stockMode === "shop" ? true : conditions.stockMode === "topup"
     ? candidate.missingCost <= Number(conditions.topUpBudget || 0)
     : candidate.status !== "insufficient")
     && (!Number(conditions.calorieLimit) || candidate.caloriesPerPerson <= Number(conditions.calorieLimit))
@@ -235,13 +236,17 @@ export function getCandidateWeight(candidate, recentRecipeIds = []) {
   return Math.max(.1, (STATUS_WEIGHT[candidate.status] + candidate.purchaseAgeBonus) * repeatPenalty);
 }
 
-export function pickRecommendation(recipes, document, random = Math.random, todayKey = localTodayKey()) {
+export function pickRecommendation(recipes, document, random = Math.random, todayKey = localTodayKey(), excludePrimaryId = null) {
   const candidates = getMealCandidates(recipes, document, todayKey);
   if (!candidates.length) {
-    return { candidate: null, candidates, message: "当前人数、库存或热量上限下没有合适菜单。可以放宽时间或热量上限、允许补买，或先补充库存数量。" };
+    return { candidate: null, candidates, message: document.conditions.stockMode === "shop"
+      ? "当前人数、时间或热量上限下没有合适菜单。可以放宽时间或热量条件。"
+      : "当前人数、库存或热量上限下没有合适菜单。可以放宽时间或热量上限、允许补买，或先补充库存数量。" };
   }
+  const eligible = excludePrimaryId && candidates.some((candidate) => candidate.recipe.id !== excludePrimaryId)
+    ? candidates.filter((candidate) => candidate.recipe.id !== excludePrimaryId) : candidates;
   const recent = document.session?.recentRecipeIds || [];
-  const weights = candidates.map((candidate) => getCandidateWeight(candidate, recent));
+  const weights = eligible.map((candidate) => getCandidateWeight(candidate, recent));
   const total = weights.reduce((sum, weight) => sum + weight, 0);
   let cursor = Math.min(.999999, Math.max(0, Number(random()))) * total;
   let index = 0;
@@ -249,5 +254,5 @@ export function pickRecommendation(recipes, document, random = Math.random, toda
     cursor -= weights[index];
     if (cursor < 0) break;
   }
-  return { candidate: candidates[index], candidates, message: "" };
+  return { candidate: eligible[index], candidates, message: "" };
 }
