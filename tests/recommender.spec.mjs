@@ -136,6 +136,12 @@ shopping.conditions = { ...shopping.conditions, diners: 2, stockMode: "shop", to
 const shoppingCandidates = getMealCandidates(recipes, shopping, today);
 check("按菜谱买菜不依赖库存或补买预算", shoppingCandidates.length > 0 && shoppingCandidates.some((candidate) => candidate.recipe.id === "light-tomato-egg-rice"));
 check("按菜谱买菜没有购买时长加权", shoppingCandidates.every((candidate) => candidate.purchaseAgeBonus === 0));
+check("多人菜单恰好一道主食且荤素搭配", shoppingCandidates.every((candidate) =>
+  candidate.dishes.filter((dish) => dish.ingredients.some((item) => ["rice", "pasta", "bread"].includes(item.id))).length === 1 &&
+  candidate.dishes.some((dish) => dish.role === "vegetable") &&
+  candidate.dishes.some((dish) => dish.diet === "meat")));
+check("意面主菜不再搭米饭", shoppingCandidates.every((candidate) =>
+  !(candidate.recipe.id === "chicken-pasta" && candidate.dishes.some((dish) => dish.id === "rice-side"))));
 const firstShoppingPick = pickRecommendation(recipes, shopping, () => 0, today);
 const rerolledShoppingPick = pickRecommendation(recipes, shopping, () => 0, today, firstShoppingPick.candidate.recipe.id);
 check("再来一次优先更换主菜", rerolledShoppingPick.candidate.recipe.id !== firstShoppingPick.candidate.recipe.id);

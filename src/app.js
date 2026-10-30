@@ -3,7 +3,7 @@
 import { createStore } from "./storage.js";
 import { recipes, findRecipe } from "./data/recipes.js";
 import { cuisines, getCuisineCandidates, pickCuisine } from "./data/cuisines.js";
-import { evaluateMeal, evaluateRecipe, getMealReplacements, mealCategory, pickRecommendation, statusLabels } from "./recommender.js";
+import { evaluateMeal, evaluateRecipe, getMealReplacements, mealCategory, mealCompositionAllowed, pickRecommendation, statusLabels } from "./recommender.js";
 import { adjustInventoryBatch, applyDeduction, buildDeduction } from "./deduction.js";
 import { derivePurchaseAge, localTodayKey, parseLocalDateKey, purchaseAgeBonus, purchaseAgeSafetyText, purchaseAgeText } from "./purchase-age.js";
 
@@ -116,7 +116,10 @@ function inventoryRows() {
 function currentRecommendation() {
   if (state.recommendation) return state.recommendation;
   const meal = data.session.lastMealRecipeIds?.map(findRecipe);
-  if (meal?.length && meal.every(Boolean)) return evaluateMeal(meal, data);
+  if (meal?.length && meal.every(Boolean)) {
+    if (meal.length > 1 && data.conditions.format === "regular" && !mealCompositionAllowed(meal, data.conditions)) return null;
+    return evaluateMeal(meal, data);
+  }
   const recipe = findRecipe(data.session.lastRecipeId);
   return recipe ? evaluateRecipe(recipe, data) : null;
 }
@@ -183,7 +186,7 @@ function drawView() {
 
 function resultView() {
   const candidate = currentRecommendation();
-  if (!candidate) return noResultView();
+  if (!candidate) { state.noResultMessage = "之前保存的菜单不符合当前配餐规则，请重新抽取。"; return noResultView(); }
   const dishes = candidate.dishes || [candidate.recipe];
   const labels = { meat: "荤菜", vegetable: "素菜", mixed: "半荤半素", "egg-tofu": "蛋豆菜", soup: "汤", staple: "主食" };
   const menu = dishes.length > 1 ? `<section class="meal-menu" aria-label="本顿完整菜单"><h3>本顿完整菜单 · ${dishes.length} 道</h3><ol class="meal-dish-list">${dishes.map((dish, index) => {

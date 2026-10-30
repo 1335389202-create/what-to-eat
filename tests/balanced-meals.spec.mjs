@@ -105,6 +105,12 @@ try {
   await page.getByRole("button", { name: "跳过并看结果" }).click();
   await page.getByRole("heading", { name: "推荐结果", exact: true }).waitFor();
   check("采购模式不显示库存状态", await page.getByText("按菜谱买菜", { exact: true }).isVisible() && await page.locator(".result-card .status-insufficient").count() === 0);
+  check("采购模式菜单一份主食且荤素搭配", await page.evaluate(() => {
+    const app = window.__MVP__;
+    const dishes = app.getData().session.lastMealRecipeIds.map((id) => app.recipes.find((recipe) => recipe.id === id));
+    return dishes.filter((dish) => dish.ingredients.some((item) => ["rice", "pasta", "bread"].includes(item.id))).length === 1
+      && dishes.some((dish) => dish.role === "vegetable") && dishes.some((dish) => dish.diet === "meat");
+  }));
   const firstShopMain = await page.evaluate(() => window.__MVP__.getData().session.lastRecipeId);
   await page.getByRole("button", { name: "整桌换一组" }).click();
   await page.getByRole("button", { name: "跳过并看结果" }).click();
@@ -116,6 +122,13 @@ try {
   check("采购清单列出整顿食材", await page.getByRole("heading", { name: "采购清单" }).isVisible() && await page.getByText(/采购 \d/).count() > 0);
   await page.getByRole("button", { name: "我做了这顿饭" }).click();
   check("采购模式完成后不扣原有库存", await page.evaluate(() => JSON.stringify(window.__MVP__.getData().inventory)) === inventoryBeforeShop);
+  await page.evaluate(() => window.__MVP__.store.update((draft) => {
+    draft.session.lastRecipeId = "chicken-pasta";
+    draft.session.lastMealRecipeIds = ["chicken-pasta", "steamed-greens-side", "rice-side"];
+  }));
+  await page.goto(`${base}#/result`, { waitUntil: "load" });
+  await page.reload({ waitUntil: "load" });
+  check("旧双主食菜单不再展示", await page.getByText("之前保存的菜单不符合当前配餐规则，请重新抽取。").isVisible());
   check("全程无控制台或资源错误", errors.length === 0, errors.join(" | "));
   console.log(JSON.stringify({ passed, total: passed }, null, 2));
 } finally {
