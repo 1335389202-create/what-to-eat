@@ -130,4 +130,14 @@ const variedDishes = ["light-tomato-egg-rice", "garlic-greens-side", "chicken-si
 check("汤可换另一道汤", getMealReplacements(recipes, varied, variedDishes, 3, today).some((candidate) => candidate.dishes[3].id === "greens-tofu-soup-side"));
 check("半荤半素可换同类菜", getMealReplacements(recipes, varied, variedDishes, 4, today).some((candidate) => candidate.dishes[4].id === "pork-pepper-mixed-side"));
 
+const shopping = createDefaultDocument(new Date(2026, 7, 26, 12));
+shopping.inventory = [];
+shopping.conditions = { ...shopping.conditions, diners: 2, stockMode: "shop", topUpBudget: 0 };
+const shoppingCandidates = getMealCandidates(recipes, shopping, today);
+check("按菜谱买菜不依赖库存或补买预算", shoppingCandidates.length > 0 && shoppingCandidates.some((candidate) => candidate.recipe.id === "light-tomato-egg-rice"));
+check("按菜谱买菜没有购买时长加权", shoppingCandidates.every((candidate) => candidate.purchaseAgeBonus === 0));
+const firstShoppingPick = pickRecommendation(recipes, shopping, () => 0, today);
+const rerolledShoppingPick = pickRecommendation(recipes, shopping, () => 0, today, firstShoppingPick.candidate.recipe.id);
+check("再来一次优先更换主菜", rerolledShoppingPick.candidate.recipe.id !== firstShoppingPick.candidate.recipe.id);
+
 console.log(JSON.stringify({ passed: results.length, total: results.length, results }, null, 2));

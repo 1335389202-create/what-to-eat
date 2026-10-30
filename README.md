@@ -34,6 +34,7 @@
 - 推荐结果解释库存状态、购买时长贡献和 Mock 补买估价；
 - 只有确认制作后才预览并一次性更新库存，失败时保持原数据。
 - 正常正餐按人数搭配主菜、蔬菜和必要的蛋白质 / 主食，菜品数为人数道或多一道；健康餐可按每人估算热量上限筛选；
+- 可选择“按菜谱买菜”，不参考现有库存，查看整顿饭的合并采购量；此模式完成制作不会扣减原库存。
 - 消耗或丢弃食材时，可直接扣减或删除指定库存批次。
 
 ### 🍽️ Eat Out
@@ -104,7 +105,7 @@ V3.0 补充验证覆盖：
 
 | Area | Candidate directions |
 |---|---|
-| 🏠 Home Cooking | shopping list · purchase-to-inventory · favorites · custom recipes · nutrition / price data |
+| 🏠 Home Cooking | savable shopping list · purchase-to-inventory · favorites · custom recipes · nutrition / price data |
 | 🤖 AI Assistance | photo recognition · constrained AI assistance · recipe generation |
 | 🍽️ Eat Out | location · business districts · maps · real restaurant / POI data · multi-city support |
 | ☁️ Platform & Collaboration | login · cloud sync · household sharing · reminders · WeChat Mini Program |

@@ -96,6 +96,26 @@ try {
   }
   await page.goto(`${base}#/eat-out`, { waitUntil: "load" });
   check("外出类型已细化", await page.locator(".cuisine-option").count() >= 16);
+  await page.goto(`${base}#/home`, { waitUntil: "load" });
+  await page.getByRole("button", { name: "今天吃什么", exact: true }).click();
+  await page.getByLabel("用餐人数（1–6 人）").fill("2");
+  await page.getByLabel("健康餐 · 每人热量上限").selectOption("0");
+  await page.getByRole("button", { name: "按菜谱买菜" }).click();
+  await page.getByRole("button", { name: "开始抽取" }).click();
+  await page.getByRole("button", { name: "跳过并看结果" }).click();
+  await page.getByRole("heading", { name: "推荐结果", exact: true }).waitFor();
+  check("采购模式不显示库存状态", await page.getByText("按菜谱买菜", { exact: true }).isVisible() && await page.locator(".result-card .status-insufficient").count() === 0);
+  const firstShopMain = await page.evaluate(() => window.__MVP__.getData().session.lastRecipeId);
+  await page.getByRole("button", { name: "整桌换一组" }).click();
+  await page.getByRole("button", { name: "跳过并看结果" }).click();
+  await page.getByRole("heading", { name: "推荐结果", exact: true }).waitFor();
+  check("采购模式整桌重抽更换主菜", await page.evaluate(() => window.__MVP__.getData().session.lastRecipeId) !== firstShopMain);
+  const inventoryBeforeShop = await page.evaluate(() => JSON.stringify(window.__MVP__.getData().inventory));
+  await page.getByRole("button", { name: "查看菜谱与采购清单" }).click();
+  await page.getByRole("heading", { name: "菜谱", exact: true }).waitFor();
+  check("采购清单列出整顿食材", await page.getByRole("heading", { name: "采购清单" }).isVisible() && await page.getByText(/采购 \d/).count() > 0);
+  await page.getByRole("button", { name: "我做了这顿饭" }).click();
+  check("采购模式完成后不扣原有库存", await page.evaluate(() => JSON.stringify(window.__MVP__.getData().inventory)) === inventoryBeforeShop);
   check("全程无控制台或资源错误", errors.length === 0, errors.join(" | "));
   console.log(JSON.stringify({ passed, total: passed }, null, 2));
 } finally {
